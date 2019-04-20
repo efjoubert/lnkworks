@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"../../lnksworks"
+	lnksworks "github.com/efjoubert/lnkworks"
 )
 
 func RegisterSchedule(schdlname string, monduration time.Duration, actions ...func(string, time.Time)) (schdl *Schedule) {

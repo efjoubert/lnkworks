@@ -4,8 +4,8 @@ import (
 	"io"
 	"strings"
 
-	"../../../lnksworks"
-	"../../../lnksworks/widgeting"
+	lnksworks "github.com/efjoubert/lnkworks"
+	"github.com/efjoubert/lnkworks/widgeting"
 )
 
 func ActiveRulingUI(path string, section ...string) {

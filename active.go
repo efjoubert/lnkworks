@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"./widgeting"
 	"github.com/dop251/goja"
+	"github.com/efjoubert/lnkworks/widgeting"
 )
 
 type activeReadSeekerPoint struct {
