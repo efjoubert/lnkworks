@@ -311,6 +311,7 @@ func (atvparse *ActiveParser) code() (s string) {
 }
 
 func (atvparse *ActiveParser) parse(rs io.ReadSeeker, root string, path string, retrieveRS func(string, string) (io.ReadSeeker, error), atvparsfunc func(*ActiveParseToken, []string, []int) (bool, error), psvparsefunc func(*ActiveParseToken, []string, []int) (bool, error)) {
+	fmt.Println("start parsing:" + path)
 	if atvparse.retrieveRS == nil || &atvparse.retrieveRS != &retrieveRS {
 		atvparse.retrieveRS = retrieveRS
 	}
@@ -618,13 +619,6 @@ func ParseActiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (next
 		if token.curStartIndex > -1 && token.curEndIndex > -1 {
 			token.tknrb, err = parseCurrentPassiveTokenStartEnd(token, token.atvrs, token.curEndIndex, true, token.curStartIndex, token.curEndIndex, token.startRIndex)
 		}
-		/*if token.psvRStartIndex > -1 && token.psvREndIndex == -1 {
-			token.psvREndIndex = token.eofEndRIndex
-			token.appendCntnt(token.atvrs, token.psvRStartIndex, token.psvREndIndex)
-			//IOSeekReaderOutput(token.parse.cntntSR).Append(token.psvRStartIndex, token.psvREndIndex)
-			token.psvRStartIndex = -1
-			token.psvREndIndex = -1
-		}*/
 		nextparse = true
 	}
 	return nextparse, err
@@ -636,7 +630,27 @@ func parseCurrentPassiveTokenStartEnd(token *ActiveParseToken, curatvrs *ActiveR
 
 	if curStartIndex > -1 && curStartIndex <= curEndIndex {
 		if token.psvCapturedIO != nil && !token.psvCapturedIO.Empty() {
-
+			token.tokenMde = tokenActive
+			var tokenparsed bool
+			var tokenerr error
+			var prevtoken *ActiveParseToken
+			for {
+				if tokenparsed, tokenerr = token.parsing(); tokenparsed || tokenerr != nil {
+					if tokenparsed && tokenerr == nil {
+						token.wrapupActiveParseToken()
+					}
+					prevtoken, tokenerr = token.cleanupActiveParseToken()
+					if tokenerr != nil {
+						for prevtoken != nil {
+							prevtoken, _ = prevtoken.cleanupActiveParseToken()
+						}
+					}
+					token = prevtoken
+					if token == nil {
+						break
+					}
+				}
+			}
 		}
 	}
 
@@ -647,10 +661,6 @@ func parseCurrentPassiveTokenStartEnd(token *ActiveParseToken, curatvrs *ActiveR
 	token.curStartIndex = -1
 	token.curEndIndex = -1
 
-	//currs.Seek(curpsvStartIndex, 0)
-
-	//currs.Seek(startRIndex, 0)
-
 	if token.psvRStartIndex > -1 && token.psvREndIndex > -1 {
 		token.appendCntnt(token.atvrs, token.psvRStartIndex, token.psvREndIndex)
 		//IOSeekReaderOutput(token.parse.cntntSR).Append(token.psvRStartIndex, token.psvREndIndex)
@@ -658,7 +668,6 @@ func parseCurrentPassiveTokenStartEnd(token *ActiveParseToken, curatvrs *ActiveR
 		token.psvREndIndex = -1
 	}
 
-	lasttknrb = token.tknrb[:]
 	return lasttknrb, err
 }
 
