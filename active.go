@@ -363,7 +363,7 @@ func (atvparse *ActiveParser) evalStartActiveEntryPoint(atvrsstartpoint *activeR
 }
 
 func nextActiveParseToken(token *ActiveParseToken, parser *ActiveParser, rspath string, atvparsefunc func(*ActiveParseToken, []string, []int) (bool, error), psvparsefunc func(*ActiveParseToken, []string, []int) (bool, error), isactive bool, isjs bool) (nexttoken *ActiveParseToken) {
-	nexttoken = &ActiveParseToken{startRIndex: 0, endRIndex: 0, prevtoken: token, parse: parser, atvparsefunc: atvparsefunc, psvparsefunc: psvparsefunc, isactive: isactive, tknrb: make([]byte, 1), curpsvStartIndex: -1, curpsvEndIndex: -1, rspath: rspath, atvRStartIndex: -1, atvREndIndex: -1, psvRStartIndex: -1, psvREndIndex: -1, tokenMde: tokenActive}
+	nexttoken = &ActiveParseToken{startRIndex: 0, endRIndex: 0, prevtoken: token, parse: parser, atvparsefunc: atvparsefunc, psvparsefunc: psvparsefunc, isactive: isactive, tknrb: make([]byte, 1), curStartIndex: -1, curEndIndex: -1, rspath: rspath, atvRStartIndex: -1, atvREndIndex: -1, psvRStartIndex: -1, psvREndIndex: -1, tokenMde: tokenActive}
 	nexttoken.atvlbls = []string{"<@", "@>"}
 	nexttoken.psvlbls = []string{nexttoken.atvlbls[0][0 : len(nexttoken.atvlbls)-1], nexttoken.atvlbls[1][1:]}
 	nexttoken.atvlblsi = []int{0, 0}
@@ -386,21 +386,21 @@ type ActiveParseToken struct {
 	atvprevb byte
 	hasAtv   bool
 	//atvCapturedIO *IORW
-	psvlbls          []string
-	psvlblsi         []int
-	psvprevb         byte
-	psvCapturedIO    *IORW
-	tknrb            []byte
-	nr               int
-	rerr             error
-	atvrs            *ActiveReadSeeker //   io.ReadSeeker
-	atvparsefunc     func(*ActiveParseToken, []string, []int) (bool, error)
-	psvparsefunc     func(*ActiveParseToken, []string, []int) (bool, error)
-	curpsvStartIndex int64
-	curpsvEndIndex   int64
-	prevtoken        *ActiveParseToken
-	isactive         bool
-	rspath           string
+	psvlbls       []string
+	psvlblsi      []int
+	psvprevb      byte
+	psvCapturedIO *IORW
+	tknrb         []byte
+	nr            int
+	rerr          error
+	atvrs         *ActiveReadSeeker //   io.ReadSeeker
+	atvparsefunc  func(*ActiveParseToken, []string, []int) (bool, error)
+	psvparsefunc  func(*ActiveParseToken, []string, []int) (bool, error)
+	curStartIndex int64
+	curEndIndex   int64
+	prevtoken     *ActiveParseToken
+	isactive      bool
+	rspath        string
 	//
 	startRIndex    int64
 	lastEndRIndex  int64
@@ -487,7 +487,7 @@ func (token *ActiveParseToken) cleanupActiveParseToken() (prevtoken *ActiveParse
 	return prevtoken, err
 }
 
-func (token *ActiveParseToken) PassiveCapturedIO() *IORW {
+func (token *ActiveParseToken) passiveCapturedIO() *IORW {
 	if token.psvCapturedIO == nil {
 		token.psvCapturedIO, _ = NewIORW()
 	}
@@ -520,9 +520,9 @@ func ParseActiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (next
 	if token.nr > 0 {
 		if lblsi[1] == 0 && lblsi[0] < len(lbls[0]) {
 			if lblsi[0] > 1 && lbls[0][lblsi[0]-1] == token.atvprevb && lbls[0][lblsi[0]] != token.tknrb[0] {
-				token.PassiveCapturedIO().Print(lbls[0][:lblsi[0]])
-				if token.curpsvStartIndex == -1 {
-					token.curpsvEndIndex = token.curpsvStartIndex - int64(lblsi[0])
+				token.passiveCapturedIO().Print(lbls[0][:lblsi[0]])
+				if token.curStartIndex == -1 {
+					token.curEndIndex = token.curStartIndex - int64(lblsi[0])
 				}
 				lblsi[0] = 0
 				token.atvprevb = 0
@@ -537,17 +537,19 @@ func ParseActiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (next
 					return nextparse, err
 				}
 			} else {
-				if token.curpsvStartIndex == -1 {
+				if token.curStartIndex == -1 {
 					if lblsi[0] > 0 {
-						token.curpsvStartIndex = token.startRIndex - int64(lblsi[0])
+						token.curStartIndex = token.startRIndex - int64(lblsi[0])
 					} else {
-						token.curpsvStartIndex = token.startRIndex
+						token.curStartIndex = token.startRIndex
 					}
 				}
 				if lblsi[0] > 0 {
+					token.passiveCapturedIO().Print(lbls[0][:lblsi[0]])
 					lblsi[0] = 0
 				}
 				token.atvprevb = token.tknrb[0]
+				token.passiveCapturedIO().Print(token.tknrb)
 				return nextparse, err
 			}
 		} else if lblsi[0] == len(lbls[0]) && lblsi[1] < len(lbls[1]) {
@@ -581,11 +583,11 @@ func ParseActiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (next
 					return nextparse, err
 				}
 			} else {
-				if token.curpsvStartIndex > -1 {
-					if token.curpsvEndIndex == -1 {
-						token.curpsvEndIndex = token.lastEndRIndex - 1 - int64(len(lbls[1]))
+				if token.curStartIndex > -1 {
+					if token.curEndIndex == -1 {
+						token.curEndIndex = token.lastEndRIndex - 1 - int64(len(lbls[1]))
 					}
-					if token.tknrb, err = parseCurrentPassiveTokenStartEnd(token, token.atvrs, token.lastEndRIndex, token.rerr != nil && token.rerr == io.EOF, token.curpsvStartIndex, token.curpsvEndIndex, token.startRIndex); err != nil {
+					if token.tknrb, err = parseCurrentPassiveTokenStartEnd(token, token.atvrs, token.lastEndRIndex, token.rerr != nil && token.rerr == io.EOF, token.curStartIndex, token.curEndIndex, token.startRIndex); err != nil {
 						return nextparse, err
 					}
 				}
@@ -610,11 +612,11 @@ func ParseActiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (next
 			}
 		}
 	} else if token.rerr == io.EOF {
-		if token.curpsvStartIndex > -1 && token.curpsvEndIndex == -1 {
-			token.curpsvEndIndex = token.eofEndRIndex
+		if token.curStartIndex > -1 && token.curEndIndex == -1 {
+			token.curEndIndex = token.eofEndRIndex
 		}
-		if token.curpsvStartIndex > -1 && token.curpsvEndIndex > -1 {
-			token.tknrb, err = parseCurrentPassiveTokenStartEnd(token, token.atvrs, token.curpsvEndIndex, true, token.curpsvStartIndex, token.curpsvEndIndex, token.startRIndex)
+		if token.curStartIndex > -1 && token.curEndIndex > -1 {
+			token.tknrb, err = parseCurrentPassiveTokenStartEnd(token, token.atvrs, token.curEndIndex, true, token.curStartIndex, token.curEndIndex, token.startRIndex)
 		}
 		/*if token.psvRStartIndex > -1 && token.psvREndIndex == -1 {
 			token.psvREndIndex = token.eofEndRIndex
@@ -628,21 +630,22 @@ func ParseActiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (next
 	return nextparse, err
 }
 
-func parseCurrentPassiveTokenStartEnd(token *ActiveParseToken, curatvrs *ActiveReadSeeker, lastEndRIndex int64, eof bool, curpsvStartIndex, curpsvEndIndex, startRIndex int64) (lasttknrb []byte, err error) {
-	token.curpsvStartIndex = curpsvStartIndex
-	token.curpsvEndIndex = curpsvEndIndex
+func parseCurrentPassiveTokenStartEnd(token *ActiveParseToken, curatvrs *ActiveReadSeeker, lastEndRIndex int64, eof bool, curStartIndex, curEndIndex, startRIndex int64) (lasttknrb []byte, err error) {
+	token.curStartIndex = curStartIndex
+	token.curEndIndex = curEndIndex
 
-	if curpsvStartIndex > -1 && curpsvStartIndex <= curpsvEndIndex {
-		//token.atvrs.Seek(curpsvStartIndex, 0)
-		//token.tokenMde = tokenPassive
+	if curStartIndex > -1 && curStartIndex <= curEndIndex {
+		if token.psvCapturedIO != nil && !token.psvCapturedIO.Empty() {
+
+		}
 	}
 
 	token.tokenMde = tokenActive
-	token.psvRStartIndex = token.curpsvStartIndex
-	token.psvREndIndex = token.curpsvEndIndex
+	token.psvRStartIndex = token.curStartIndex
+	token.psvREndIndex = token.curEndIndex
 
-	token.curpsvStartIndex = -1
-	token.curpsvEndIndex = -1
+	token.curStartIndex = -1
+	token.curEndIndex = -1
 
 	//currs.Seek(curpsvStartIndex, 0)
 
