@@ -387,21 +387,22 @@ type ActiveParseToken struct {
 	atvprevb byte
 	hasAtv   bool
 	//atvCapturedIO *IORW
-	psvlbls       []string
-	psvlblsi      []int
-	psvprevb      byte
-	psvCapturedIO *IORW
-	tknrb         []byte
-	nr            int
-	rerr          error
-	atvrs         *ActiveReadSeeker //   io.ReadSeeker
-	atvparsefunc  func(*ActiveParseToken, []string, []int) (bool, error)
-	psvparsefunc  func(*ActiveParseToken, []string, []int) (bool, error)
-	curStartIndex int64
-	curEndIndex   int64
-	prevtoken     *ActiveParseToken
-	isactive      bool
-	rspath        string
+	psvlbls          []string
+	psvlblsi         []int
+	psvprevb         byte
+	psvCapturedIO    *IORW
+	psvUnvalidatedIO *IORW
+	tknrb            []byte
+	nr               int
+	rerr             error
+	atvrs            *ActiveReadSeeker //   io.ReadSeeker
+	atvparsefunc     func(*ActiveParseToken, []string, []int) (bool, error)
+	psvparsefunc     func(*ActiveParseToken, []string, []int) (bool, error)
+	curStartIndex    int64
+	curEndIndex      int64
+	prevtoken        *ActiveParseToken
+	isactive         bool
+	rspath           string
 	//
 	startRIndex    int64
 	lastEndRIndex  int64
@@ -493,6 +494,13 @@ func (token *ActiveParseToken) passiveCapturedIO() *IORW {
 		token.psvCapturedIO, _ = NewIORW()
 	}
 	return token.psvCapturedIO
+}
+
+func (token *ActiveParseToken) passiveUnvalidatedIO() *IORW {
+	if token.psvUnvalidatedIO == nil {
+		token.psvUnvalidatedIO, _ = NewIORW()
+	}
+	return token.psvUnvalidatedIO
 }
 
 func (token *ActiveParseToken) parsing() (parsed bool, err error) {
@@ -634,6 +642,7 @@ func parseCurrentPassiveTokenStartEnd(token *ActiveParseToken, curatvrs *ActiveR
 			var tokenparsed bool
 			var tokenerr error
 			var prevtoken *ActiveParseToken
+			token.curEndIndex = -1
 			for {
 				if tokenparsed, tokenerr = token.parsing(); tokenparsed || tokenerr != nil {
 					if tokenparsed && tokenerr == nil {
@@ -677,7 +686,6 @@ func parseCurrentPassiveTokenStartEnd(token *ActiveParseToken, curatvrs *ActiveR
 //ParsePassiveToken - Default ParsePassiveToken method
 func ParsePassiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (parsed bool, err error) {
 	if token.nr > 0 {
-		fmt.Print(string(token.tknrb))
 		if lblsi[1] == 0 && lblsi[0] < len(lbls[0]) {
 			if lblsi[0] > 1 && lbls[0][lblsi[0]-1] == token.atvprevb && lbls[0][lblsi[0]] != token.tknrb[0] {
 				lblsi[0] = 0
@@ -705,11 +713,49 @@ func ParsePassiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (par
 				lblsi[1]++
 				if lblsi[1] == len(lbls[1]) {
 					if validPassiveParse(token) {
+						//DO this first
+						if token.curStartIndex > -1 && token.curStartIndex <= token.curEndIndex {
+							token.psvRStartIndex = token.curStartIndex
+							token.psvREndIndex = token.curEndIndex
 
+							token.curStartIndex = token.curEndIndex
+							token.curEndIndex = -1
+
+							if token.psvRStartIndex > -1 && token.psvREndIndex > -1 {
+								token.appendCntnt(token.atvrs, token.psvRStartIndex, token.psvREndIndex)
+								//IOSeekReaderOutput(token.parse.cntntSR).Append(token.psvRStartIndex, token.psvREndIndex)
+								token.psvRStartIndex = -1
+								token.psvREndIndex = -1
+							}
+						}
 					} else {
-
+						if lblsi[0] > 0 {
+							if token.curEndIndex == -1 {
+								token.curEndIndex = token.curStartIndex
+							}
+							token.curEndIndex += int64(lblsi[0])
+						}
+						if token.psvUnvalidatedIO != nil && !token.psvUnvalidatedIO.Empty() {
+							if lblsi[0] > 0 {
+								if token.curEndIndex == -1 {
+									token.curEndIndex = token.curStartIndex
+								}
+								token.curEndIndex += token.psvUnvalidatedIO.Size()
+							}
+						}
+						if lblsi[1] > 0 {
+							if token.curEndIndex == -1 {
+								token.curEndIndex = token.curStartIndex
+							}
+							token.curEndIndex += int64(lblsi[1])
+						}
 					}
-					lblsi[1] = 0
+
+					if token.psvUnvalidatedIO != nil && !token.psvUnvalidatedIO.Empty() {
+						token.psvUnvalidatedIO.Close()
+					}
+
+					lblsi[0] = 0
 					lblsi[1] = 0
 					return parsed, err
 				} else {
@@ -717,10 +763,10 @@ func ParsePassiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (par
 				}
 			} else {
 				if lblsi[1] > 0 {
-
+					token.passiveUnvalidatedIO().Print(lbls[1][:lblsi[1]])
 					lblsi[1] = 0
 				}
-
+				token.passiveUnvalidatedIO().Print(token.tknrb)
 				return parsed, err
 			}
 		}
