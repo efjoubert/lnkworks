@@ -311,16 +311,12 @@ func (atvparse *ActiveParser) code() (s string) {
 }
 
 func (atvparse *ActiveParser) parse(rs io.ReadSeeker, root string, path string, retrieveRS func(string, string) (io.ReadSeeker, error), atvparsfunc func(*ActiveParseToken, []string, []int) (bool, error), psvparsefunc func(*ActiveParseToken, []string, []int) (bool, error)) {
-	fmt.Println("start parsing:" + path)
 	if atvparse.retrieveRS == nil || &atvparse.retrieveRS != &retrieveRS {
 		atvparse.retrieveRS = retrieveRS
 	}
 	atvparse.setRS(path, rs)
 	atvtoken := nextActiveParseToken(nil, atvparse, path, atvparsfunc, psvparsefunc, true, isJsExtension(filepath.Ext(path)))
-	//queueActiveToken(atvtoken)
-	//if atvparse.unparsedIOs == nil {
-	//	atvparse.unparsedIOs = []*IORW{}
-	//}
+
 	var tokenparsed bool
 	var tokenerr error
 	var prevtoken *ActiveParseToken
@@ -483,6 +479,10 @@ func (token *ActiveParseToken) cleanupActiveParseToken() (prevtoken *ActiveParse
 		token.psvCapturedIO.Close()
 		token.psvCapturedIO = nil
 	}
+	if token.psvUnvalidatedIO != nil {
+		token.psvUnvalidatedIO.Close()
+		token.psvUnvalidatedIO = nil
+	}
 	if token.tknrb != nil {
 		token.tknrb = nil
 	}
@@ -642,13 +642,10 @@ func parseCurrentPassiveTokenStartEnd(token *ActiveParseToken, curatvrs *ActiveR
 			var tokenparsed bool
 			var tokenerr error
 			var prevtoken *ActiveParseToken
-			token.curEndIndex = -1
+			token.curEndIndex = curStartIndex
 			for {
 				if tokenparsed, tokenerr = token.parsing(); tokenparsed || tokenerr != nil {
 					if tokenparsed && tokenerr == nil {
-						if token.psvCapturedIO != nil && !token.psvCapturedIO.Empty() {
-							token.psvCapturedIO.Close()
-						}
 						break
 					}
 					prevtoken, tokenerr = token.cleanupActiveParseToken()
@@ -663,11 +660,32 @@ func parseCurrentPassiveTokenStartEnd(token *ActiveParseToken, curatvrs *ActiveR
 					}
 				}
 			}
+			if !token.psvCapturedIO.Empty() {
+				token.psvCapturedIO.Close()
+			}
+		}
+		if token.curStartIndex > -1 && token.curStartIndex <= token.curEndIndex {
+			token.psvRStartIndex = token.curStartIndex
+			if token.curEndIndex > token.curStartIndex {
+				token.psvREndIndex = token.curEndIndex - 1
+			} else {
+				token.psvREndIndex = token.curEndIndex
+			}
+
+			token.curStartIndex = -1
+			token.curEndIndex = -1
+
+			if token.psvRStartIndex > -1 && token.psvREndIndex > -1 {
+				token.appendCntnt(token.atvrs, token.psvRStartIndex, token.psvREndIndex)
+				//IOSeekReaderOutput(token.parse.cntntSR).Append(token.psvRStartIndex, token.psvREndIndex)
+				token.psvRStartIndex = -1
+				token.psvREndIndex = -1
+			}
 		}
 	}
 
 	token.tokenMde = tokenActive
-	token.psvRStartIndex = token.curStartIndex
+	/*token.psvRStartIndex = token.curStartIndex
 	token.psvREndIndex = token.curEndIndex
 
 	token.curStartIndex = -1
@@ -678,7 +696,7 @@ func parseCurrentPassiveTokenStartEnd(token *ActiveParseToken, curatvrs *ActiveR
 		//IOSeekReaderOutput(token.parse.cntntSR).Append(token.psvRStartIndex, token.psvREndIndex)
 		token.psvRStartIndex = -1
 		token.psvREndIndex = -1
-	}
+	}*/
 
 	return lasttknrb, err
 }
@@ -688,12 +706,17 @@ func ParsePassiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (par
 	if token.nr > 0 {
 		if lblsi[1] == 0 && lblsi[0] < len(lbls[0]) {
 			if lblsi[0] > 1 && lbls[0][lblsi[0]-1] == token.atvprevb && lbls[0][lblsi[0]] != token.tknrb[0] {
+				if token.curEndIndex == -1 {
+					token.curEndIndex = token.curStartIndex
+				}
+				token.curEndIndex += int64(lblsi[0])
 				lblsi[0] = 0
 				token.psvprevb = 0
 			}
 			if lbls[0][lblsi[0]] == token.tknrb[0] {
 				lblsi[0]++
 				if len(lbls[0]) == lblsi[0] {
+
 					token.psvprevb = 0
 					return parsed, err
 				} else {
@@ -702,9 +725,16 @@ func ParsePassiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (par
 				}
 			} else {
 				if lblsi[0] > 0 {
-
+					if token.curEndIndex == -1 {
+						token.curEndIndex = token.curStartIndex
+					}
+					token.curEndIndex += int64(lblsi[0])
 					lblsi[0] = 0
 				}
+				if token.curEndIndex == -1 {
+					token.curEndIndex = token.curStartIndex
+				}
+				token.curEndIndex += 1
 				token.psvprevb = token.tknrb[0]
 				return parsed, err
 			}
@@ -713,11 +743,13 @@ func ParsePassiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (par
 				lblsi[1]++
 				if lblsi[1] == len(lbls[1]) {
 					if validPassiveParse(token) {
-						//DO this first
 						if token.curStartIndex > -1 && token.curStartIndex <= token.curEndIndex {
 							token.psvRStartIndex = token.curStartIndex
-							token.psvREndIndex = token.curEndIndex
-
+							if token.curEndIndex > token.curStartIndex {
+								token.psvREndIndex = token.curEndIndex - 1
+							} else {
+								token.psvREndIndex = token.curEndIndex
+							}
 							token.curStartIndex = token.curEndIndex
 							token.curEndIndex = -1
 
@@ -736,12 +768,10 @@ func ParsePassiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (par
 							token.curEndIndex += int64(lblsi[0])
 						}
 						if token.psvUnvalidatedIO != nil && !token.psvUnvalidatedIO.Empty() {
-							if lblsi[0] > 0 {
-								if token.curEndIndex == -1 {
-									token.curEndIndex = token.curStartIndex
-								}
-								token.curEndIndex += token.psvUnvalidatedIO.Size()
+							if token.curEndIndex == -1 {
+								token.curEndIndex = token.curStartIndex
 							}
+							token.curEndIndex += token.psvUnvalidatedIO.Size()
 						}
 						if lblsi[1] > 0 {
 							if token.curEndIndex == -1 {
@@ -750,7 +780,6 @@ func ParsePassiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (par
 							token.curEndIndex += int64(lblsi[1])
 						}
 					}
-
 					if token.psvUnvalidatedIO != nil && !token.psvUnvalidatedIO.Empty() {
 						token.psvUnvalidatedIO.Close()
 					}
@@ -773,6 +802,13 @@ func ParsePassiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (par
 	} else if token.rerr == io.EOF {
 		if token.psvCapturedIO != nil && !token.psvCapturedIO.Empty() {
 			token.psvCapturedIO.Close()
+		}
+		if token.psvUnvalidatedIO != nil && !token.psvUnvalidatedIO.Empty() {
+			if token.curEndIndex == -1 {
+				token.curEndIndex = token.curStartIndex
+			}
+			token.curEndIndex += token.psvUnvalidatedIO.Size()
+			token.psvUnvalidatedIO.Close()
 		}
 	}
 	return true, err

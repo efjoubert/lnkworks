@@ -41,6 +41,87 @@ func (ioRW *IORW) UnderlyingCursor() *ReadWriteCursor {
 	return ioRW.cur
 }
 
+func (ioRW *IORW) HasSuffix(suffix []byte) bool {
+	if sufl := len(suffix); sufl > 0 {
+		if ioRW.Size() >= int64(sufl) {
+			if ioRW.altR == nil {
+				bytesl := ioRW.bytesi
+
+				for sufl > 0 && bytesl > 0 {
+					if suffix[sufl-1] != ioRW.bytes[bytesl-1] {
+						return false
+					}
+					sufl--
+					bytesl--
+				}
+
+				if sufl > 0 {
+					buffsl := len(ioRW.buffer)
+
+					for sufl > 0 && buffsl > 0 {
+						bytesl = len(ioRW.buffer[buffsl-1])
+						for sufl > 0 && bytesl > 0 {
+							if suffix[sufl-1] != ioRW.buffer[buffsl-1][bytesl-1] {
+								return false
+							}
+							sufl--
+							bytesl--
+						}
+						buffsl--
+					}
+				}
+
+				return sufl == 0
+			}
+		}
+	}
+	return false
+}
+
+func (ioRW *IORW) HasPrefix(prefix []byte) bool {
+	if prefl := len(prefix); prefl > 0 {
+		if ioRW.Size() >= int64(prefl) {
+
+			if ioRW.altR == nil {
+				prefi := 0
+
+				bufi := 0
+				bufl := len(ioRW.buffer)
+				bytei := 0
+
+				for prefi < prefl && bufi < bufl {
+					for bytei < len(ioRW.buffer[bufi]) {
+						if prefix[prefi] != ioRW.buffer[bufi][bytei] {
+							return false
+						}
+						bytei++
+					}
+					bytei = 0
+					bufi++
+				}
+
+				bytei = 0
+				for prefi < prefl && bytei < ioRW.bytesi {
+					if prefix[prefi] != ioRW.bytes[bytei] {
+						return false
+					}
+					bytei++
+				}
+
+				return prefi == prefl
+			}
+		}
+	}
+	return false
+}
+
+func (ioRW *IORW) HasPrefixSuffix(prefix []byte, suffix []byte) bool {
+	if len(prefix) > 0 && len(suffix) > 0 {
+		return ioRW.Size() >= int64(len(prefix)+len(suffix)) && ioRW.HasPrefix(prefix) && ioRW.HasSuffix(suffix)
+	}
+	return false
+}
+
 func (ioRW *IORW) SeekIndex() int64 {
 	if ioRW.altR == nil {
 		if ioRW.cur == nil {
