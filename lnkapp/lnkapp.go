@@ -5,11 +5,11 @@ import (
 	"strings"
 	"time"
 
-	lnksworks "github.com/efjoubert/lnkworks"
-	activeruling "github.com/efjoubert/lnkworks/activeruling"
-	activerulinggui "github.com/efjoubert/lnkworks/activeruling/gui"
-	embed "github.com/efjoubert/lnkworks/embed"
-	widgeting "github.com/efjoubert/lnkworks/widgeting"
+	lnksworks "../../lnkworks"
+	activeruling "../../lnkworks/activeruling"
+	activerulinggui "../../lnkworks/activeruling/gui"
+	embed "../../lnkworks/embed"
+	widgeting "../../lnkworks/widgeting"
 )
 
 func main() {

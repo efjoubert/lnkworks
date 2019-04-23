@@ -242,8 +242,8 @@ func (atvparse *ActiveParser) readActive(token *ActiveParseToken) (tknrn int, tk
 }
 
 func (atvparse *ActiveParser) readPassive(token *ActiveParseToken) (tknrn int, tknrnerr error) {
-	if token.atvrs != nil {
-		tknrn, tknrnerr = token.atvrs.Read(token.tknrb)
+	if token.psvCapturedIO != nil {
+		tknrn, tknrnerr = token.psvCapturedIO.Read(token.tknrb)
 	} else {
 		tknrn, tknrnerr = emptyIO.Read(token.tknrb)
 	}
@@ -513,7 +513,7 @@ func (token *ActiveParseToken) parsingActive() (parsed bool, err error) {
 
 func (token *ActiveParseToken) parsingPassive() (parsed bool, err error) {
 	token.nr, token.rerr = token.parse.readPassive(token)
-	return token.psvparsefunc(token, token.atvlbls, token.atvlblsi)
+	return token.psvparsefunc(token, token.psvlbls, token.psvlblsi)
 }
 
 //ParseActiveToken - Default ParseActiveToken method
@@ -630,14 +630,17 @@ func parseCurrentPassiveTokenStartEnd(token *ActiveParseToken, curatvrs *ActiveR
 
 	if curStartIndex > -1 && curStartIndex <= curEndIndex {
 		if token.psvCapturedIO != nil && !token.psvCapturedIO.Empty() {
-			token.tokenMde = tokenActive
+			token.tokenMde = tokenPassive
 			var tokenparsed bool
 			var tokenerr error
 			var prevtoken *ActiveParseToken
 			for {
 				if tokenparsed, tokenerr = token.parsing(); tokenparsed || tokenerr != nil {
 					if tokenparsed && tokenerr == nil {
-						token.wrapupActiveParseToken()
+						if token.psvCapturedIO != nil && !token.psvCapturedIO.Empty() {
+							token.psvCapturedIO.Close()
+						}
+						break
 					}
 					prevtoken, tokenerr = token.cleanupActiveParseToken()
 					if tokenerr != nil {
@@ -674,6 +677,7 @@ func parseCurrentPassiveTokenStartEnd(token *ActiveParseToken, curatvrs *ActiveR
 //ParsePassiveToken - Default ParsePassiveToken method
 func ParsePassiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (parsed bool, err error) {
 	if token.nr > 0 {
+		fmt.Print(string(token.tknrb))
 		if lblsi[1] == 0 && lblsi[0] < len(lbls[0]) {
 			if lblsi[0] > 1 && lbls[0][lblsi[0]-1] == token.atvprevb && lbls[0][lblsi[0]] != token.tknrb[0] {
 				lblsi[0] = 0
@@ -700,7 +704,11 @@ func ParsePassiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (par
 			if lbls[1][lblsi[1]] == token.tknrb[0] {
 				lblsi[1]++
 				if lblsi[1] == len(lbls[1]) {
+					if validPassiveParse(token) {
 
+					} else {
+
+					}
 					lblsi[1] = 0
 					lblsi[1] = 0
 					return parsed, err
@@ -717,9 +725,16 @@ func ParsePassiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (par
 			}
 		}
 	} else if token.rerr == io.EOF {
-
+		if token.psvCapturedIO != nil && !token.psvCapturedIO.Empty() {
+			token.psvCapturedIO.Close()
+		}
 	}
 	return true, err
+}
+
+func validPassiveParse(token *ActiveParseToken) (valid bool) {
+
+	return valid
 }
 
 //ActiveProcessor - ActiveProcessor
