@@ -529,6 +529,9 @@ func ParseActiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (next
 	if token.nr > 0 {
 		if lblsi[1] == 0 && lblsi[0] < len(lbls[0]) {
 			if lblsi[0] > 1 && lbls[0][lblsi[0]-1] == token.atvprevb && lbls[0][lblsi[0]] != token.tknrb[0] {
+				if token.psvCapturedIO != nil && !token.psvCapturedIO.Empty() {
+					token.psvCapturedIO.Close()
+				}
 				token.passiveCapturedIO().Print(lbls[0][:lblsi[0]])
 				if token.curStartIndex == -1 {
 					token.curEndIndex = token.curStartIndex - int64(lblsi[0])
@@ -554,11 +557,22 @@ func ParseActiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (next
 					}
 				}
 				if lblsi[0] > 0 {
+					if token.psvCapturedIO != nil && !token.psvCapturedIO.Empty() {
+						token.psvCapturedIO.Close()
+					}
 					token.passiveCapturedIO().Print(lbls[0][:lblsi[0]])
 					lblsi[0] = 0
 				}
 				token.atvprevb = token.tknrb[0]
 				token.passiveCapturedIO().Print(token.tknrb)
+
+				if token.psvCapturedIO != nil && !token.psvCapturedIO.Empty() && token.psvCapturedIO.HasSuffix([]byte(token.psvlbls[1])) {
+					if token.psvCapturedIO.HasPrefixSuffix([]byte(token.psvlbls[0]), []byte(token.psvlbls[1])) {
+						//fmt.Println(token.psvCapturedIO.String())
+					}
+					token.psvCapturedIO.Close()
+				}
+
 				return nextparse, err
 			}
 		} else if lblsi[0] == len(lbls[0]) && lblsi[1] < len(lbls[1]) {

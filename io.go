@@ -95,6 +95,7 @@ func (ioRW *IORW) HasPrefix(prefix []byte) bool {
 							return false
 						}
 						bytei++
+						prefi++
 					}
 					bytei = 0
 					bufi++
@@ -106,6 +107,7 @@ func (ioRW *IORW) HasPrefix(prefix []byte) bool {
 						return false
 					}
 					bytei++
+					prefi++
 				}
 
 				return prefi == prefl
