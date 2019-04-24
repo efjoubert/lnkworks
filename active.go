@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/dop251/goja"
@@ -19,12 +20,10 @@ type activeReadSeekerPoint struct {
 }
 
 type ActiveParser struct {
-	atv          *ActiveProcessor
-	retrieveRS   func(string, string) (io.ReadSeeker, error)
-	atvParseFunc func(*ActiveParseToken) bool
-	psvParseFunc func(*ActiveParseToken) bool
-	tknrb        []byte
-	//unparsedIOs      []*IORW
+	atv              *ActiveProcessor
+	retrieveRS       func(string, string) (io.ReadSeeker, error)
+	atvParseFunc     func(*ActiveParseToken) bool
+	psvParseFunc     func(*ActiveParseToken) bool
 	atvrsmap         map[string]*ActiveReadSeeker
 	atvrscntntcdemap map[int]*ActiveReadSeeker
 	atvrspntsentries []*activeReadSeekerPoint
@@ -206,17 +205,6 @@ func (atvparse *ActiveParser) readCurrentUnparsedTokenIO(token *ActiveParseToken
 		}
 		token.startRIndex = 0
 		token.endRIndex = 0
-		/*if len(atvparse.unparsedIOs) == 1 {
-			atvparse.unparsedIOs[0].Seek(0, 0)
-		} else {
-			atvparse.unparsedIOs[0].Close()
-		}
-		atvparse.unparsedIOs[0] = nil
-		if len(atvparse.unparsedIOs) > 1 {
-			atvparse.unparsedIOs = atvparse.unparsedIOs[1:]
-		} else {
-			atvparse.unparsedIOs = nil
-		}*/
 	} else {
 		token.lastEndRIndex = token.endRIndex
 		token.startRIndex = token.endRIndex
@@ -317,12 +305,12 @@ func (atvparse *ActiveParser) code() (s string) {
 	return s
 }
 
-func (atvparse *ActiveParser) parse(rs io.ReadSeeker, root string, path string, retrieveRS func(string, string) (io.ReadSeeker, error), atvparsfunc func(*ActiveParseToken, []string, []int) (bool, error), psvparsefunc func(*ActiveParseToken, []string, []int) (bool, error)) {
+func (atvparse *ActiveParser) parse(rs io.ReadSeeker, root string, path string, retrieveRS func(string, string) (io.ReadSeeker, error)) {
 	if atvparse.retrieveRS == nil || &atvparse.retrieveRS != &retrieveRS {
 		atvparse.retrieveRS = retrieveRS
 	}
 	atvparse.setRS(path, rs)
-	atvtoken := nextActiveParseToken(nil, atvparse, path, atvparsfunc, psvparsefunc, true, isJsExtension(filepath.Ext(path)))
+	atvtoken := nextActiveParseToken(nil, atvparse, path, true, isJsExtension(filepath.Ext(path)))
 
 	var tokenparsed bool
 	var tokenerr error
@@ -366,12 +354,12 @@ func (atvparse *ActiveParser) evalStartActiveEntryPoint(atvrsstartpoint *activeR
 	}
 }
 
-func nextActiveParseToken(token *ActiveParseToken, parser *ActiveParser, rspath string, atvparsefunc func(*ActiveParseToken, []string, []int) (bool, error), psvparsefunc func(*ActiveParseToken, []string, []int) (bool, error), isactive bool, isjs bool) (nexttoken *ActiveParseToken) {
-	nexttoken = &ActiveParseToken{startRIndex: 0, endRIndex: 0, prevtoken: token, parse: parser, atvparsefunc: atvparsefunc, psvparsefunc: psvparsefunc, isactive: isactive, tknrb: make([]byte, 1), curStartIndex: -1, curEndIndex: -1, rspath: rspath, atvRStartIndex: -1, atvREndIndex: -1, psvRStartIndex: -1, psvREndIndex: -1, tokenMde: tokenActive}
+func nextActiveParseToken(token *ActiveParseToken, parser *ActiveParser, rspath string, isactive bool, isjs bool) (nexttoken *ActiveParseToken) {
+	nexttoken = &ActiveParseToken{startRIndex: 0, endRIndex: 0, prevtoken: token, parse: parser, atvparsefunc: ParseActiveToken /*psvparsefunc: psvparsefunc,*/, isactive: isactive, tknrb: make([]byte, 1), curStartIndex: -1, curEndIndex: -1, rspath: rspath, atvRStartIndex: -1, atvREndIndex: -1 /* psvRStartIndex: -1, psvREndIndex: -1,*/, tokenMde: tokenActive}
 	nexttoken.atvlbls = []string{"<@", "@>"}
 	nexttoken.psvlbls = []string{nexttoken.atvlbls[0][0 : len(nexttoken.atvlbls)-1], nexttoken.atvlbls[1][1:]}
 	nexttoken.atvlblsi = []int{0, 0}
-	nexttoken.psvlblsi = []int{0, 0}
+	//nexttoken.psvlblsi = []int{0, 0}
 	nexttoken.atvrs = parser.atvrs(rspath)
 	return nexttoken
 }
@@ -384,15 +372,12 @@ const (
 )
 
 type ActiveParseToken struct {
-	parse    *ActiveParser
-	atvlbls  []string
-	atvlblsi []int
-	atvprevb byte
-	hasAtv   bool
-	//atvCapturedIO *IORW
+	parse            *ActiveParser
+	atvlbls          []string
+	atvlblsi         []int
+	atvprevb         byte
+	hasAtv           bool
 	psvlbls          []string
-	psvlblsi         []int
-	psvprevb         byte
 	psvCapturedIO    *IORW
 	psvUnvalidatedIO *IORW
 	tknrb            []byte
@@ -400,7 +385,6 @@ type ActiveParseToken struct {
 	rerr             error
 	atvrs            *ActiveReadSeeker //   io.ReadSeeker
 	atvparsefunc     func(*ActiveParseToken, []string, []int) (bool, error)
-	psvparsefunc     func(*ActiveParseToken, []string, []int) (bool, error)
 	curStartIndex    int64
 	curEndIndex      int64
 	prevtoken        *ActiveParseToken
@@ -413,11 +397,7 @@ type ActiveParseToken struct {
 	eofEndRIndex   int64
 	atvRStartIndex int64
 	atvREndIndex   int64
-	psvRStartIndex int64
-	psvREndIndex   int64
-	//cdeSR          *codeSeekReader
-	//cntntSR        *contentSeekReader
-	tokenMde tokenMode
+	tokenMde       tokenMode
 }
 
 func (token *ActiveParseToken) appendCde(atvrs *ActiveReadSeeker, atvRStartIndex int64, atvREndIndex int64) {
@@ -473,12 +453,6 @@ func (token *ActiveParseToken) cleanupActiveParseToken() (prevtoken *ActiveParse
 	if token.psvlbls != nil {
 		token.psvlbls = nil
 	}
-	if token.psvlblsi != nil {
-		token.psvlblsi = nil
-	}
-	if token.psvparsefunc != nil {
-		token.psvparsefunc = nil
-	}
 	if token.rerr != nil {
 		token.rerr = nil
 	}
@@ -513,8 +487,6 @@ func (token *ActiveParseToken) passiveUnvalidatedIO() *IORW {
 func (token *ActiveParseToken) parsing() (parsed bool, err error) {
 	if token.tokenMde == tokenActive {
 		return token.parsingActive()
-	} else if token.tokenMde == tokenPassive {
-		return token.parsingPassive()
 	} else {
 		err = fmt.Errorf("INVALID PARSING POINT READ")
 	}
@@ -524,11 +496,6 @@ func (token *ActiveParseToken) parsing() (parsed bool, err error) {
 func (token *ActiveParseToken) parsingActive() (parsed bool, err error) {
 	token.nr, token.rerr = token.parse.readActive(token)
 	return token.atvparsefunc(token, token.atvlbls, token.atvlblsi)
-}
-
-func (token *ActiveParseToken) parsingPassive() (parsed bool, err error) {
-	token.nr, token.rerr = token.parse.readPassive(token)
-	return token.psvparsefunc(token, token.psvlbls, token.psvlblsi)
 }
 
 //ParseActiveToken - Default ParseActiveToken method
@@ -541,7 +508,7 @@ func ParseActiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (next
 				}
 				token.passiveCapturedIO().Print(lbls[0][:lblsi[0]])
 				if token.curStartIndex == -1 {
-					token.curEndIndex = token.curStartIndex - int64(lblsi[0])
+					token.curStartIndex = token.startRIndex - int64(lblsi[0])
 				}
 				lblsi[0] = 0
 				token.atvprevb = 0
@@ -575,7 +542,24 @@ func ParseActiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (next
 
 				if token.psvCapturedIO != nil && !token.psvCapturedIO.Empty() && token.psvCapturedIO.HasSuffix([]byte(token.psvlbls[1])) {
 					if token.psvCapturedIO.HasPrefixSuffix([]byte(token.psvlbls[0]), []byte(token.psvlbls[1])) {
-						//fmt.Println(token.psvCapturedIO.String())
+						if valid, single, complexStart, complexEnd, valErr := validatePassiveCapturedIO(token); valid {
+							if single || complexStart {
+								if token.curStartIndex > -1 {
+									if token.curEndIndex == -1 {
+										token.curEndIndex = token.lastEndRIndex - token.psvCapturedIO.Size()
+									}
+									if token.tknrb, err = parseCurrentPassiveTokenStartEnd(token, token.atvrs, token.lastEndRIndex, token.rerr != nil && token.rerr == io.EOF, token.curStartIndex, token.curEndIndex, token.startRIndex); err != nil {
+										return nextparse, err
+									}
+								}
+								if single || complexEnd {
+
+								}
+							}
+						} else if valErr != nil {
+							err = valErr
+							return nextparse, err
+						}
 					}
 					token.psvCapturedIO.Close()
 				}
@@ -595,12 +579,6 @@ func ParseActiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (next
 					}
 					if token.atvREndIndex > -1 {
 						token.atvREndIndex = -1
-					}
-					if token.psvRStartIndex > -1 {
-						token.psvRStartIndex = -1
-					}
-					if token.psvREndIndex > -1 {
-						token.psvREndIndex = -1
 					}
 					if token.hasAtv {
 						token.hasAtv = false
@@ -652,6 +630,60 @@ func ParseActiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (next
 	return nextparse, err
 }
 
+func validatePassiveCapturedIO(token *ActiveParseToken) (valid bool, single bool, comlexStart bool, complexEnd bool, err error) {
+	if actualSize := (token.psvCapturedIO.Size() - int64(len(token.psvlbls[0])+len(token.psvlbls[1]))); actualSize >= 1 {
+		if valid = (actualSize == 1 && token.psvCapturedIO.String() == "/"); !valid {
+			token.psvCapturedIO.Seek(int64(len(token.psvlbls[0])), 0)
+
+			actualSizei := int64(0)
+
+			foundFSlash := false
+			for actualSizei < actualSize {
+				if r, _, _ := token.psvCapturedIO.ReadRune(); r > 0 {
+					actualSizei += int64(len(string(r)))
+					if strings.TrimSpace(string(r)) != "" {
+						if r == 47 {
+							if !foundFSlash {
+								foundFSlash = true
+								if token.psvUnvalidatedIO != nil && !token.psvUnvalidatedIO.Empty() {
+									single = true
+								} else {
+									complexEnd = true
+								}
+							} else {
+								err = fmt.Errorf("Invalid element - " + token.psvCapturedIO.String())
+							}
+						} else {
+							token.passiveUnvalidatedIO().WriteRune(r)
+							if actualSizei < actualSize {
+								continue
+							}
+						}
+					}
+					if strings.TrimSpace(string(r)) == "" || actualSizei == actualSize {
+						if token.psvUnvalidatedIO.MatchExp(regexptagstart) {
+							comlexStart = !(single || complexEnd)
+							valid = true
+						} else {
+							break
+						}
+					}
+				} else {
+					break
+				}
+			}
+
+			if token.psvUnvalidatedIO != nil && !token.psvUnvalidatedIO.Empty() {
+				token.psvUnvalidatedIO.Close()
+			}
+		}
+	}
+	if valid && err != nil {
+		valid = false
+	}
+	return
+}
+
 func parseCurrentPassiveTokenStartEnd(token *ActiveParseToken, curatvrs *ActiveReadSeeker, lastEndRIndex int64, eof bool, curStartIndex, curEndIndex, startRIndex int64) (lasttknrb []byte, err error) {
 	token.curStartIndex = -1
 	token.curEndIndex = -1
@@ -661,124 +693,6 @@ func parseCurrentPassiveTokenStartEnd(token *ActiveParseToken, curatvrs *ActiveR
 	}
 
 	return lasttknrb, err
-}
-
-//ParsePassiveToken - Default ParsePassiveToken method
-func ParsePassiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (parsed bool, err error) {
-	if token.nr > 0 {
-		if lblsi[1] == 0 && lblsi[0] < len(lbls[0]) {
-			if lblsi[0] > 1 && lbls[0][lblsi[0]-1] == token.atvprevb && lbls[0][lblsi[0]] != token.tknrb[0] {
-				if token.curEndIndex == -1 {
-					token.curEndIndex = token.curStartIndex
-				}
-				token.curEndIndex += int64(lblsi[0])
-				lblsi[0] = 0
-				token.psvprevb = 0
-			}
-			if lbls[0][lblsi[0]] == token.tknrb[0] {
-				lblsi[0]++
-				if len(lbls[0]) == lblsi[0] {
-
-					token.psvprevb = 0
-					return parsed, err
-				} else {
-					token.psvprevb = token.tknrb[0]
-					return parsed, err
-				}
-			} else {
-				if lblsi[0] > 0 {
-					if token.curEndIndex == -1 {
-						token.curEndIndex = token.curStartIndex
-					}
-					token.curEndIndex += int64(lblsi[0])
-					lblsi[0] = 0
-				}
-				if token.curEndIndex == -1 {
-					token.curEndIndex = token.curStartIndex
-				}
-				token.curEndIndex += 1
-				token.psvprevb = token.tknrb[0]
-				return parsed, err
-			}
-		} else if lblsi[0] == len(lbls[0]) && lblsi[1] < len(lbls[1]) {
-			if lbls[1][lblsi[1]] == token.tknrb[0] {
-				lblsi[1]++
-				if lblsi[1] == len(lbls[1]) {
-					if validPassiveParse(token) {
-						if token.curStartIndex > -1 && token.curStartIndex <= token.curEndIndex {
-							token.psvRStartIndex = token.curStartIndex
-							if token.curEndIndex > token.curStartIndex {
-								token.psvREndIndex = token.curEndIndex - 1
-							} else {
-								token.psvREndIndex = token.curEndIndex
-							}
-							token.curStartIndex = token.curEndIndex
-							token.curEndIndex = -1
-
-							if token.psvRStartIndex > -1 && token.psvREndIndex > -1 {
-								token.appendCntnt(token.atvrs, token.psvRStartIndex, token.psvREndIndex)
-								//IOSeekReaderOutput(token.parse.cntntSR).Append(token.psvRStartIndex, token.psvREndIndex)
-								token.psvRStartIndex = -1
-								token.psvREndIndex = -1
-							}
-						}
-					} else {
-						if lblsi[0] > 0 {
-							if token.curEndIndex == -1 {
-								token.curEndIndex = token.curStartIndex
-							}
-							token.curEndIndex += int64(lblsi[0])
-						}
-						if token.psvUnvalidatedIO != nil && !token.psvUnvalidatedIO.Empty() {
-							if token.curEndIndex == -1 {
-								token.curEndIndex = token.curStartIndex
-							}
-							token.curEndIndex += token.psvUnvalidatedIO.Size()
-						}
-						if lblsi[1] > 0 {
-							if token.curEndIndex == -1 {
-								token.curEndIndex = token.curStartIndex
-							}
-							token.curEndIndex += int64(lblsi[1])
-						}
-					}
-					if token.psvUnvalidatedIO != nil && !token.psvUnvalidatedIO.Empty() {
-						token.psvUnvalidatedIO.Close()
-					}
-
-					lblsi[0] = 0
-					lblsi[1] = 0
-					return parsed, err
-				} else {
-					return parsed, err
-				}
-			} else {
-				if lblsi[1] > 0 {
-					token.passiveUnvalidatedIO().Print(lbls[1][:lblsi[1]])
-					lblsi[1] = 0
-				}
-				token.passiveUnvalidatedIO().Print(token.tknrb)
-				return parsed, err
-			}
-		}
-	} else if token.rerr == io.EOF {
-		if token.psvCapturedIO != nil && !token.psvCapturedIO.Empty() {
-			token.psvCapturedIO.Close()
-		}
-		if token.psvUnvalidatedIO != nil && !token.psvUnvalidatedIO.Empty() {
-			if token.curEndIndex == -1 {
-				token.curEndIndex = token.curStartIndex
-			}
-			token.curEndIndex += token.psvUnvalidatedIO.Size()
-			token.psvUnvalidatedIO.Close()
-		}
-	}
-	return true, err
-}
-
-func validPassiveParse(token *ActiveParseToken) (valid bool) {
-
-	return valid
 }
 
 //ActiveProcessor - ActiveProcessor
@@ -835,7 +749,6 @@ func (atvpro *ActiveProcessor) evalCode(cdefunc func() string, refelems ...map[s
 		}
 	}
 	s := cdefunc()
-	//fmt.Println(s)
 
 	vmeval := &vmeval{vm: atvpro.vm, code: s, done: make(chan bool, 1)}
 	vmelalqueue <- vmeval
@@ -847,9 +760,6 @@ func (atvpro *ActiveProcessor) evalCode(cdefunc func() string, refelems ...map[s
 		}
 		vmeval = nil
 	}
-	/*if _, err = atvpro.vm.RunString(s); err != nil {
-		fmt.Println(err.Error())
-	}*/
 
 	if len(refelems) > 0 {
 		for elemname, _ := range refelems[0] {
@@ -935,7 +845,31 @@ func MapActiveCommand(path string, a ...interface{}) {
 
 var vmelalqueue chan *vmeval
 
+const tagstartregexp string = `^((.:(([a-z]|[A-Z])\w*)+)|(([a-z]|[A-Z])+(:(([a-z]|[A-Z])\w*)+)+))+(:(([a-z]|[A-Z])\w*)+)*(-(([a-z]|[A-Z])\w*)+)?(.([a-z]|[A-Z])+)?$`
+
+var regexptagstart *regexp.Regexp
+
+const propregexp string = `^-?-?(([a-z]+[0-9]*)[a-z]*)+(-([a-z]+[0-9]*)[a-z]*)?$`
+
+var regexprop *regexp.Regexp
+
+const propvalnumberexp string = `^[-+]?\d+([.]\d+)?$`
+
+var regexpropvalnumberexp *regexp.Regexp
+
 func init() {
+
+	if regexptagstart == nil {
+		regexptagstart = regexp.MustCompile(tagstartregexp)
+	}
+	if regexprop == nil {
+		regexprop = regexp.MustCompile(propregexp)
+	}
+
+	if regexpropvalnumberexp == nil {
+		regexpropvalnumberexp = regexp.MustCompile(propvalnumberexp)
+	}
+
 	if activeModuledCommands == nil {
 		activeModuledCommands = map[string]map[string]ActiveCommandHandler{}
 	}
@@ -1002,7 +936,7 @@ func (atvpros *ActiveProcessor) Process(rs io.ReadSeeker, root string, path stri
 			}
 		}
 	} else {
-		atvpros.atvParser.parse(rs, root, path, retrieveRS, ParseActiveToken, ParsePassiveToken)
+		atvpros.atvParser.parse(rs, root, path, retrieveRS)
 	}
 }
 

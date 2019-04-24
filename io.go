@@ -1,9 +1,11 @@
 package lnksworks
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"sync"
 )
 
@@ -76,6 +78,17 @@ func (ioRW *IORW) HasSuffix(suffix []byte) bool {
 		}
 	}
 	return false
+}
+
+func (ioRW *IORW) HasPrefixExp(regexp *regexp.Regexp) bool {
+	if loc := regexp.FindReaderIndex(ioRW); loc != nil && loc[0] == 0 {
+		return true
+	}
+	return false
+}
+
+func (ioRW *IORW) MatchExp(regexp *regexp.Regexp) bool {
+	return regexp.MatchReader(ioRW)
 }
 
 func (ioRW *IORW) HasPrefix(prefix []byte) bool {
@@ -336,6 +349,29 @@ func writeBytesToWriter(b []byte, w io.Writer) (n int, err error) {
 	return n, err
 }
 
+// ReadRune implements the io.RuneReader interface.
+func (ioRW *IORW) ReadRune() (r rune, size int, err error) {
+	if ioRW.altR == nil {
+		if ioRW.cur == nil {
+			if ioRW.Size() == 0 {
+				err = io.EOF
+			} else {
+				ioRW.cur = ioRW.ReadWriteCursor(true)
+				r, size, err = ioRW.cur.ReadRune()
+			}
+		} else {
+			r, size, err = ioRW.cur.ReadRune()
+		}
+	} else {
+		//if n, err = ioRW.altR.Read(p); err == nil {
+		//	ioRW.altRIndex += int64(n)
+		//} else {
+		//	ioRW.altRIndex = -1
+		//}
+	}
+	return
+}
+
 //Read into b []byte n amount of bytes from IORW
 func (ioRW *IORW) Read(p []byte) (n int, err error) {
 	if ioRW.altR == nil {
@@ -361,14 +397,26 @@ func (ioRW *IORW) Read(p []byte) (n int, err error) {
 }
 
 //WriteAll content from r io.Reader
-func (ioRW *IORW) WriteAll(r io.Reader) (err error) {
+func (ioRW *IORW) WriteAll(r io.Reader, maxReadLen ...int64) (err error) {
 	bts := make([]byte, 4096)
-	for {
+	mReadLen := int64(-1)
+	if len(maxReadLen) == 1 && maxReadLen[0] > 0 {
+		mReadLen = maxReadLen[0]
+	}
+	for mReadLen == -1 || mReadLen > 0 {
 		if rn, rerr := readBytesFromReader(bts, r); rerr == nil || rerr == io.EOF {
 			if rn > 0 {
-				if _, werr := writeBytesToWriter(bts[0:rn], ioRW); werr != nil {
+				if mReadLen <= int64(rn) {
+					rn = int(mReadLen)
+				}
+				if wn, werr := writeBytesToWriter(bts[0:rn], ioRW); werr != nil {
 					err = werr
 					break
+				} else if mReadLen > 0 {
+					mReadLen -= int64(wn)
+					if mReadLen == 0 {
+						break
+					}
 				}
 			} else {
 				break
@@ -387,7 +435,15 @@ func (ioRW *IORW) WriteAll(r io.Reader) (err error) {
 //Seek -> refer to io.ReadSeeker go documentation
 func (ioRW *IORW) Seek(offset int64, whence int) (n int64, err error) {
 	if ioRW.altRS == nil {
-		if ioRW.cur != nil {
+		if ioRW.cur == nil {
+			if ioRW.Size() == 0 {
+				n = 0
+				err = fmt.Errorf("Invalid Seek state - reader empty")
+			} else {
+				ioRW.cur = ioRW.ReadWriteCursor(true)
+				n, err = ioRW.cur.Seek(offset, whence)
+			}
+		} else if ioRW.cur != nil {
 			n, err = ioRW.cur.Seek(offset, whence)
 		}
 	} else {
@@ -395,6 +451,11 @@ func (ioRW *IORW) Seek(offset int64, whence int) (n int64, err error) {
 		ioRW.altRIndex = n
 	}
 	return n, err
+}
+
+//WriteRune r rune into IORW as bytes
+func (ioRW *IORW) WriteRune(r rune) (int, error) {
+	return ioRW.Write([]byte(string([]rune{r})))
 }
 
 //Write b []byte n amount of bytes into IORW
@@ -760,6 +821,7 @@ type ReadWriteCursor struct {
 	maxBuffer              *IORW
 	bufReadSeeker          io.ReadSeeker
 	bufReadCloser          io.ReadCloser
+	bufRuneReader          *bufio.Reader
 }
 
 func (ioRWCur *ReadWriteCursor) SeekIndex() int64 {
@@ -875,6 +937,18 @@ func (ioRWCur *ReadWriteCursor) lockCur() {
 	}
 }
 
+// ReadRune implements the io.RuneReader interface.
+func (ioRWCur *ReadWriteCursor) ReadRune() (r rune, size int, err error) {
+	if ioRWCur.bufRuneReader == nil {
+		ioRWCur.bufRuneReader = bufio.NewReader(ioRWCur)
+	}
+	r, size, err = ioRWCur.bufRuneReader.ReadRune()
+	if err != nil {
+		ioRWCur.bufRuneReader = nil
+	}
+	return
+}
+
 func (ioRWCur *ReadWriteCursor) Read(p []byte) (n int, err error) {
 	n, err = ioRWCur.ioRW.cursorRead(p, ioRWCur)
 	return n, err
@@ -915,6 +989,9 @@ func (ioRWCur *ReadWriteCursor) Close() (err error) {
 	if ioRWCur.bufReadCloser != nil {
 		ioRWCur.bufReadCloser.Close()
 		ioRWCur.bufReadCloser = nil
+	}
+	if ioRWCur.bufRuneReader != nil {
+		ioRWCur.bufRuneReader = nil
 	}
 	return err
 }

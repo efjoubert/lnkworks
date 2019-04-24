@@ -92,7 +92,11 @@ type Router struct {
 
 func RegisterRoute(path string, rootpath string, hndlefunc ...func(svr *Server, rt *Route, root string, path string, mimetype string, w http.ResponseWriter, r *http.Request, active *ActiveProcessor)) {
 	if !strings.HasSuffix(rootpath, "/") {
-		rootpath = rootpath + "/"
+		if rootpath == "" {
+			rootpath = "./"
+		} else {
+			rootpath = rootpath + "/"
+		}
 	}
 	routes.rlock.RLock()
 	defer routes.rlock.RUnlock()

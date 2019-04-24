@@ -69,7 +69,7 @@ func main() {
 		"section/sub.html", strings.NewReader(`<span>section->sub</span>`),
 	)
 
-	lnksworks.RegisterRoute("/lnks", "./")
+	lnksworks.RegisterRoute("/lnks", "")
 	svr := lnksworks.NewServer(":1030", false, "", "")
 	if err := svr.Listen(); err != nil {
 		panic(err)
