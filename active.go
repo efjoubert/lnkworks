@@ -355,10 +355,11 @@ func (atvparse *ActiveParser) evalStartActiveEntryPoint(atvrsstartpoint *activeR
 }
 
 func nextActiveParseToken(token *ActiveParseToken, parser *ActiveParser, rspath string, isactive bool, isjs bool) (nexttoken *ActiveParseToken) {
-	nexttoken = &ActiveParseToken{startRIndex: 0, endRIndex: 0, prevtoken: token, parse: parser, atvparsefunc: ParseActiveToken /*psvparsefunc: psvparsefunc,*/, isactive: isactive, tknrb: make([]byte, 1), curStartIndex: -1, curEndIndex: -1, rspath: rspath, atvRStartIndex: -1, atvREndIndex: -1 /* psvRStartIndex: -1, psvREndIndex: -1,*/, tokenMde: tokenActive}
+	nexttoken = &ActiveParseToken{startRIndex: 0, endRIndex: 0, prevtoken: token, parse: parser, isactive: isactive, tknrb: make([]byte, 1), curStartIndex: -1, curEndIndex: -1, rspath: rspath, atvRStartIndex: -1, atvREndIndex: -1, tokenMde: tokenActive}
 	nexttoken.atvlbls = []string{"<@", "@>"}
 	nexttoken.psvlbls = []string{nexttoken.atvlbls[0][0 : len(nexttoken.atvlbls)-1], nexttoken.atvlbls[1][1:]}
 	nexttoken.atvlblsi = []int{0, 0}
+	nexttoken.parkedPoint = []int64{-1, -1}
 	//nexttoken.psvlblsi = []int{0, 0}
 	nexttoken.atvrs = parser.atvrs(rspath)
 	return nexttoken
@@ -384,12 +385,12 @@ type ActiveParseToken struct {
 	nr               int
 	rerr             error
 	atvrs            *ActiveReadSeeker //   io.ReadSeeker
-	atvparsefunc     func(*ActiveParseToken, []string, []int) (bool, error)
 	curStartIndex    int64
 	curEndIndex      int64
 	prevtoken        *ActiveParseToken
 	isactive         bool
 	rspath           string
+	parkedPoint      []int64
 	//
 	startRIndex    int64
 	lastEndRIndex  int64
@@ -440,9 +441,6 @@ func (token *ActiveParseToken) cleanupActiveParseToken() (prevtoken *ActiveParse
 	if token.atvlblsi != nil {
 		token.atvlblsi = nil
 	}
-	if token.atvparsefunc != nil {
-		token.atvparsefunc = nil
-	}
 	if token.parse != nil {
 		token.parse = nil
 	}
@@ -466,6 +464,9 @@ func (token *ActiveParseToken) cleanupActiveParseToken() (prevtoken *ActiveParse
 	}
 	if token.tknrb != nil {
 		token.tknrb = nil
+	}
+	if token.parkedPoint != nil {
+		token.parkedPoint = nil
 	}
 	return prevtoken, err
 }
@@ -495,11 +496,10 @@ func (token *ActiveParseToken) parsing() (parsed bool, err error) {
 
 func (token *ActiveParseToken) parsingActive() (parsed bool, err error) {
 	token.nr, token.rerr = token.parse.readActive(token)
-	return token.atvparsefunc(token, token.atvlbls, token.atvlblsi)
+	return parseActiveToken(token, token.atvlbls, token.atvlblsi)
 }
 
-//ParseActiveToken - Default ParseActiveToken method
-func ParseActiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (nextparse bool, err error) {
+func parseActiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (nextparse bool, err error) {
 	if token.nr > 0 {
 		if lblsi[1] == 0 && lblsi[0] < len(lbls[0]) {
 			if lblsi[0] > 1 && lbls[0][lblsi[0]-1] == token.atvprevb && lbls[0][lblsi[0]] != token.tknrb[0] {

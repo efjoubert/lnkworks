@@ -87,8 +87,17 @@ func (ioRW *IORW) HasPrefixExp(regexp *regexp.Regexp) bool {
 	return false
 }
 
-func (ioRW *IORW) MatchExp(regexp *regexp.Regexp) bool {
-	return regexp.MatchReader(ioRW)
+func (ioRW *IORW) MatchExp(regexp ...*regexp.Regexp) bool {
+	if len(regexp) == 0 {
+		return false
+	}
+
+	for _, regxp := range regexp {
+		if !regxp.MatchReader(ioRW) {
+			return false
+		}
+	}
+	return true
 }
 
 func (ioRW *IORW) HasPrefix(prefix []byte) bool {
