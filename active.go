@@ -190,7 +190,14 @@ func (atvparse *ActiveParser) WriteContentByPos(rsi int, pos int) {
 }
 
 func (atvparse *ActiveParser) readCurrentUnparsedTokenIO(token *ActiveParseToken, p []byte) (n int, err error) {
-	n, err = token.atvrs.Read(p)
+	for {
+		if n, err = token.atvrs.Read(p); n == 0 && err == nil {
+			err = io.EOF
+			return
+		} else {
+			break
+		}
+	}
 	if err == io.EOF {
 		if token.endRIndex > 0 {
 			token.eofEndRIndex = token.endRIndex - 1
@@ -581,7 +588,6 @@ func ParseActiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (next
 				if lblsi[1] == len(lbls[1]) {
 					if token.atvRStartIndex > -1 && token.atvREndIndex > -1 {
 						token.appendCde(token.atvrs, token.atvRStartIndex, token.atvREndIndex)
-						//IOSeekReaderOutput(token.parse.cdeSR).Append(token.atvRStartIndex, token.atvREndIndex)
 					}
 
 					if token.atvRStartIndex > -1 {
@@ -647,70 +653,12 @@ func ParseActiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (next
 }
 
 func parseCurrentPassiveTokenStartEnd(token *ActiveParseToken, curatvrs *ActiveReadSeeker, lastEndRIndex int64, eof bool, curStartIndex, curEndIndex, startRIndex int64) (lasttknrb []byte, err error) {
-	token.curStartIndex = curStartIndex
-	token.curEndIndex = curEndIndex
-
-	if curStartIndex > -1 && curStartIndex <= curEndIndex {
-		if token.psvCapturedIO != nil && !token.psvCapturedIO.Empty() {
-			token.tokenMde = tokenPassive
-			var tokenparsed bool
-			var tokenerr error
-			var prevtoken *ActiveParseToken
-			token.curEndIndex = curStartIndex
-			for {
-				if tokenparsed, tokenerr = token.parsing(); tokenparsed || tokenerr != nil {
-					if tokenparsed && tokenerr == nil {
-						break
-					}
-					prevtoken, tokenerr = token.cleanupActiveParseToken()
-					if tokenerr != nil {
-						for prevtoken != nil {
-							prevtoken, _ = prevtoken.cleanupActiveParseToken()
-						}
-					}
-					token = prevtoken
-					if token == nil {
-						break
-					}
-				}
-			}
-			if !token.psvCapturedIO.Empty() {
-				token.psvCapturedIO.Close()
-			}
-		}
-		if token.curStartIndex > -1 && token.curStartIndex <= token.curEndIndex {
-			token.psvRStartIndex = token.curStartIndex
-			if token.curEndIndex > token.curStartIndex {
-				token.psvREndIndex = token.curEndIndex - 1
-			} else {
-				token.psvREndIndex = token.curEndIndex
-			}
-
-			token.curStartIndex = -1
-			token.curEndIndex = -1
-
-			if token.psvRStartIndex > -1 && token.psvREndIndex > -1 {
-				token.appendCntnt(token.atvrs, token.psvRStartIndex, token.psvREndIndex)
-				//IOSeekReaderOutput(token.parse.cntntSR).Append(token.psvRStartIndex, token.psvREndIndex)
-				token.psvRStartIndex = -1
-				token.psvREndIndex = -1
-			}
-		}
-	}
-
-	token.tokenMde = tokenActive
-	/*token.psvRStartIndex = token.curStartIndex
-	token.psvREndIndex = token.curEndIndex
-
 	token.curStartIndex = -1
 	token.curEndIndex = -1
-
-	if token.psvRStartIndex > -1 && token.psvREndIndex > -1 {
-		token.appendCntnt(token.atvrs, token.psvRStartIndex, token.psvREndIndex)
-		//IOSeekReaderOutput(token.parse.cntntSR).Append(token.psvRStartIndex, token.psvREndIndex)
-		token.psvRStartIndex = -1
-		token.psvREndIndex = -1
-	}*/
+	lasttknrb = token.tknrb[:]
+	if curStartIndex > -1 && curEndIndex > -1 && curStartIndex <= curEndIndex {
+		token.appendCntnt(token.atvrs, curStartIndex, curEndIndex)
+	}
 
 	return lasttknrb, err
 }
