@@ -42,13 +42,12 @@ func (colType *ColumnType) Name() string {
 func (colType *ColumnType) Numeric() bool {
 	if colType.hasPrecisionScale {
 		return true
-	} else {
-		return strings.Index(colType.databaseType, "CHAR") == -1 && strings.Index(colType.databaseType, "DATE") == -1 && strings.Index(colType.databaseType, "TIME") == -1
 	}
+	return strings.Index(colType.databaseType, "CHAR") == -1 && strings.Index(colType.databaseType, "DATE") == -1 && strings.Index(colType.databaseType, "TIME") == -1
 }
 
-func (coltype *ColumnType) HasNullable() bool {
-	return coltype.hasNullable
+func (colType *ColumnType) HasNullable() bool {
+	return colType.hasNullable
 }
 
 func (colType *ColumnType) HasLength() bool {
@@ -100,9 +99,9 @@ func (rset *DbResultSet) MetaData() *DbResultSetMetaData {
 
 func (rset *DbResultSet) Data() []interface{} {
 	go func() {
-		for n, _ := range rset.data {
+		for n := range rset.data {
 			coltype := rset.rsmetadata.colTypes[n]
-			rset.dispdata[n] = castSqlTypeValue(rset.data[n], coltype)
+			rset.dispdata[n] = castSQLTypeValue(rset.data[n], coltype)
 		}
 		rset.dosomething <- true
 	}()
@@ -110,7 +109,7 @@ func (rset *DbResultSet) Data() []interface{} {
 	return rset.dispdata
 }
 
-func castSqlTypeValue(valToCast interface{}, colType *ColumnType) (castedVal interface{}) {
+func castSQLTypeValue(valToCast interface{}, colType *ColumnType) (castedVal interface{}) {
 	if valToCast != nil {
 
 		if d, dok := valToCast.([]uint8); dok {
@@ -137,7 +136,7 @@ func (rset *DbResultSet) Next() (next bool, err error) {
 			rset.dispdata = make([]interface{}, len(rset.rsmetadata.cols))
 		}
 
-		for n, _ := range rset.data {
+		for n := range rset.data {
 			rset.dataref[n] = &rset.data[n]
 		}
 

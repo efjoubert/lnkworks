@@ -11,46 +11,34 @@ import (
 	"github.com/efjoubert/lnkworks/widgeting"
 )
 
-type activeReadSeekerPoint struct {
-	atvrsi      int
-	atvrs       *ActiveReadSeeker
-	atvrsstarti int64
-	atvrsendi   int64
-	atvrspointi int
-}
+//RetrieveRSFunc definition if function that retrieve external active resource e.g file
+type RetrieveRSFunc = func(root string, path string) (rsfound io.ReadSeeker, rsfounderr error)
 
-type ActiveParser struct {
+type activeParser struct {
 	atv              *ActiveProcessor
-	retrieveRS       func(string, string) (io.ReadSeeker, error)
-	atvParseFunc     func(*ActiveParseToken) bool
-	psvParseFunc     func(*ActiveParseToken) bool
-	atvrsmap         map[string]*ActiveReadSeeker
-	atvrscntntcdemap map[int]*ActiveReadSeeker
-	atvrspntsentries []*activeReadSeekerPoint
-	atvtrsstartpoint *activeReadSeekerPoint
-	atvTkns          map[*ActiveParseToken]*ActiveParseToken
+	retrieveRS       RetrieveRSFunc
+	atvParseFunc     func(*activeParseToken) bool
+	psvParseFunc     func(*activeParseToken) bool
+	atvrsmap         map[string]*activeReadSeeker
+	atvrscntntcdemap map[int]*activeReadSeeker
+	atvtrsstart      *activeReadSeeker
+	atvTkns          map[*activeParseToken]*activeParseToken
 }
 
-func (atvparse *ActiveParser) appendActiveRSPoint(atvrs *ActiveReadSeeker, isStart bool) {
-	if atvparse.atvrspntsentries == nil {
-		atvparse.atvrspntsentries = []*activeReadSeekerPoint{}
-	}
-	atvrspoint := &activeReadSeekerPoint{atvrs: atvrs, atvrsi: atvrs.atvrsi, atvrspointi: len(atvparse.atvrspntsentries)}
-	atvparse.atvrspntsentries = append(atvparse.atvrspntsentries, atvrspoint)
+func (atvparse *activeParser) appendActiveRSPoint(atvrs *activeReadSeeker, isStart bool) {
 	if isStart {
-		atvparse.atvtrsstartpoint = atvrspoint
+		atvparse.atvtrsstart = atvrs
 	}
-	atvrspoint = nil
 }
 
-func (atvparse *ActiveParser) atvrs(path string) (atvrs *ActiveReadSeeker) {
+func (atvparse *activeParser) atvrs(path string) (atvrs *activeReadSeeker) {
 	if atvparse.atvrsmap != nil {
 		atvrs, _ = atvparse.atvrsmap[path]
 	}
 	return atvrs
 }
 
-func (atvparse *ActiveParser) setRSByPath(path string) (err error) {
+func (atvparse *activeParser) setRSByPath(path string) (err error) {
 	if atvparse.atvrsmap == nil {
 		if rstomap, rstomaperr := atvparse.retrieveRS("", path); rstomap != nil && rstomaperr == nil {
 			atvparse.setRS(path, rstomap)
@@ -69,17 +57,17 @@ func (atvparse *ActiveParser) setRSByPath(path string) (err error) {
 	return
 }
 
-func (atvparse *ActiveParser) setRS(path string, rstomap io.ReadSeeker) {
+func (atvparse *activeParser) setRS(path string, rstomap io.ReadSeeker) {
 	if rstomap != nil {
 		if atvparse.atvrsmap == nil {
-			atvparse.atvrsmap = map[string]*ActiveReadSeeker{}
+			atvparse.atvrsmap = map[string]*activeReadSeeker{}
 		}
 		if atvparse.atvrscntntcdemap == nil {
-			atvparse.atvrscntntcdemap = map[int]*ActiveReadSeeker{}
+			atvparse.atvrscntntcdemap = map[int]*activeReadSeeker{}
 		}
 		if _, atvrsok := atvparse.atvrsmap[path]; !atvrsok {
 			atvrsio, _ := NewIORW(rstomap)
-			atvrs := &ActiveReadSeeker{atvrsio: atvrsio, atvparse: atvparse}
+			atvrs := &activeReadSeeker{atvrsio: atvrsio, atvparse: atvparse}
 			cntntrs := newContentSeekReader(atvrs)
 			atvrs.cntntRS = cntntrs
 			cders := newCodeSeekReader(atvrs, cntntrs)
@@ -90,8 +78,13 @@ func (atvparse *ActiveParser) setRS(path string, rstomap io.ReadSeeker) {
 	}
 }
 
+type activeRSItem struct {
+	cders   *contentSeekReader
+	cntntrs *contentSeekReader
+}
+
 type contentSeekReader struct {
-	atvrs        *ActiveReadSeeker
+	atvrs        *activeReadSeeker
 	lastStartRsI int
 	lastEndRsI   int
 	*IOSeekReader
@@ -112,10 +105,13 @@ func (cntntsr *contentSeekReader) clearContentSeekReader() {
 		cntntsr.IOSeekReader.ClearIOSeekReader()
 		cntntsr.IOSeekReader = nil
 	}
+	if cntntsr.atvrs != nil {
+		cntntsr.atvrs = nil
+	}
 }
 
 type codeSeekReader struct {
-	atvrs *ActiveReadSeeker
+	atvrs *activeReadSeeker
 	*IOSeekReader
 	cntntsr           *contentSeekReader
 	lastCntntStartI   int64
@@ -154,7 +150,7 @@ func (cdesr *codeSeekReader) Append(starti int64, endi int64) {
 		if _, istartok := cdesr.cntntseekristart[starti]; !istartok {
 			if cdesr.cntntsr.lastStartRsI > -1 && cdesr.cntntsr.lastStartRsI <= cdesr.cntntsr.lastEndRsI {
 				cntids := make([]int, (cdesr.cntntsr.lastEndRsI-cdesr.cntntsr.lastStartRsI)+1)
-				for cntidsn, _ := range cntids {
+				for cntidsn := range cntids {
 					cntids[cntidsn] = cdesr.cntntsr.lastStartRsI
 					cdesr.cntntsr.lastStartRsI++
 				}
@@ -177,7 +173,7 @@ func (cdesr *codeSeekReader) clearCodeSeekReader() {
 		cdesr.cntntsr = nil
 	}
 	if cdesr.cntntseekristart != nil {
-		for cntntseekristartKey, _ := range cdesr.cntntseekristart {
+		for cntntseekristartKey := range cdesr.cntntseekristart {
 			cdesr.cntntseekristart[cntntseekristartKey] = nil
 			delete(cdesr.cntntseekristart, cntntseekristartKey)
 		}
@@ -188,19 +184,19 @@ func (cdesr *codeSeekReader) clearCodeSeekReader() {
 	}
 }
 
-func newContentSeekReader(atvrs *ActiveReadSeeker) *contentSeekReader {
+func newContentSeekReader(atvrs *activeReadSeeker) *contentSeekReader {
 	cntntsr := &contentSeekReader{atvrs: atvrs, IOSeekReader: NewIOSeekReader(atvrs), lastStartRsI: -1, lastEndRsI: -1}
 	return cntntsr
 }
 
-func newCodeSeekReader(atvrs *ActiveReadSeeker, cntntsr *contentSeekReader) *codeSeekReader {
+func newCodeSeekReader(atvrs *activeReadSeeker, cntntsr *contentSeekReader) *codeSeekReader {
 	cdesr := &codeSeekReader{atvrs: atvrs, IOSeekReader: NewIOSeekReader(atvrs), lastCntntStartI: -1, cntntsr: cntntsr}
 	return cdesr
 }
 
-var emptyIO *IORW = &IORW{cached: false}
+var emptyIO = &IORW{cached: false}
 
-func (atvparse *ActiveParser) WriteContentByPos(rsi int, pos int) {
+func (atvparse *activeParser) WriteContentByPos(rsi int, pos int) {
 	if atvparse.atvrsmap != nil && atvparse.atvrscntntcdemap != nil {
 		if atvrs, atvrsok := atvparse.atvrscntntcdemap[rsi]; atvrsok && atvrs.cntntRS != nil && len(atvrs.cntntRS.seekis) > 0 {
 			atvrs.cntntRS.WriteSeekedPos(atvparse.atv.w, pos, 0)
@@ -208,14 +204,13 @@ func (atvparse *ActiveParser) WriteContentByPos(rsi int, pos int) {
 	}
 }
 
-func (atvparse *ActiveParser) readCurrentUnparsedTokenIO(token *ActiveParseToken, p []byte) (n int, err error) {
+func (atvparse *activeParser) readCurrentUnparsedTokenIO(token *activeParseToken, p []byte) (n int, err error) {
 	for {
 		if n, err = token.atvrs.Read(p); n == 0 && err == nil {
 			err = io.EOF
 			return
-		} else {
-			break
 		}
+		break
 	}
 	if err == io.EOF {
 		if token.endRIndex > 0 {
@@ -233,17 +228,17 @@ func (atvparse *ActiveParser) readCurrentUnparsedTokenIO(token *ActiveParseToken
 	return n, err
 }
 
-func (atvparse *ActiveParser) cleanupActiveParser() {
+func (atvparse *activeParser) cleanupactiveParser() {
 	if atvparse.atvrscntntcdemap != nil {
-		for atvcntk, _ := range atvparse.atvrscntntcdemap {
-			atvparse.atvrscntntcdemap[atvcntk].cleanupActiveReadSeeker()
+		for atvcntk := range atvparse.atvrscntntcdemap {
+			atvparse.atvrscntntcdemap[atvcntk].cleanupactiveReadSeeker()
 			atvparse.atvrscntntcdemap[atvcntk] = nil
 			delete(atvparse.atvrscntntcdemap, atvcntk)
 		}
 		atvparse.atvrscntntcdemap = nil
 	}
 	if atvparse.atvrsmap != nil {
-		for rspath, _ := range atvparse.atvrsmap {
+		for rspath := range atvparse.atvrsmap {
 			atvparse.atvrsmap[rspath] = nil
 			delete(atvparse.atvrsmap, rspath)
 		}
@@ -251,12 +246,12 @@ func (atvparse *ActiveParser) cleanupActiveParser() {
 	}
 }
 
-func (atvparse *ActiveParser) readActive(token *ActiveParseToken) (tknrn int, tknrnerr error) {
+func (atvparse *activeParser) readActive(token *activeParseToken) (tknrn int, tknrnerr error) {
 	tknrn, tknrnerr = atvparse.readCurrentUnparsedTokenIO(token, token.tknrb)
 	return tknrn, tknrnerr
 }
 
-func (atvparse *ActiveParser) readPassive(token *ActiveParseToken) (tknrn int, tknrnerr error) {
+func (atvparse *activeParser) readPassive(token *activeParseToken) (tknrn int, tknrnerr error) {
 	if token.psvCapturedIO != nil {
 		tknrn, tknrnerr = token.psvCapturedIO.Read(token.tknrb)
 	} else {
@@ -265,9 +260,9 @@ func (atvparse *ActiveParser) readPassive(token *ActiveParseToken) (tknrn int, t
 	return tknrn, tknrnerr
 }
 
-type ActiveReadSeeker struct {
+type activeReadSeeker struct {
 	atvpros   *ActiveProcessor
-	atvparse  *ActiveParser
+	atvparse  *activeParser
 	atvrsio   *IORW
 	cntntRS   *contentSeekReader
 	cdeRS     *codeSeekReader
@@ -275,7 +270,7 @@ type ActiveReadSeeker struct {
 	atvrspath string
 }
 
-func (atvrs *ActiveReadSeeker) writeAllContent(w io.Writer) {
+func (atvrs *activeReadSeeker) writeAllContent(w io.Writer) {
 	if !atvrs.cntntRS.Empty() {
 		if len(atvrs.cntntRS.seekis) > 0 {
 			if atvrs.atvparse.atv.out == nil {
@@ -291,41 +286,41 @@ func (atvrs *ActiveReadSeeker) writeAllContent(w io.Writer) {
 	}
 }
 
-func (atvRS *ActiveReadSeeker) cleanupActiveReadSeeker() {
-	if atvRS.atvparse != nil {
-		atvRS.atvparse = nil
+func (atvrs *activeReadSeeker) cleanupactiveReadSeeker() {
+	if atvrs.atvparse != nil {
+		atvrs.atvparse = nil
 	}
-	if atvRS.atvpros != nil {
-		atvRS.atvpros = nil
+	if atvrs.atvpros != nil {
+		atvrs.atvpros = nil
 	}
-	if atvRS.atvrsio != nil {
-		atvRS.atvrsio.Close()
-		atvRS.atvrsio = nil
+	if atvrs.atvrsio != nil {
+		atvrs.atvrsio.Close()
+		atvrs.atvrsio = nil
 	}
-	if atvRS.cdeRS != nil {
-		atvRS.cdeRS.clearCodeSeekReader()
-		atvRS.cdeRS = nil
+	if atvrs.cdeRS != nil {
+		atvrs.cdeRS.clearCodeSeekReader()
+		atvrs.cdeRS = nil
 	}
-	if atvRS.cntntRS != nil {
-		atvRS.cntntRS.clearContentSeekReader()
-		atvRS.cntntRS = nil
+	if atvrs.cntntRS != nil {
+		atvrs.cntntRS.clearContentSeekReader()
+		atvrs.cntntRS = nil
 	}
 }
 
-func (atvrs *ActiveReadSeeker) Seek(offset int64, whence int) (n int64, err error) {
+func (atvrs *activeReadSeeker) Seek(offset int64, whence int) (n int64, err error) {
 	return atvrs.atvrsio.Seek(offset, whence)
 }
 
-func (atvrs *ActiveReadSeeker) Read(p []byte) (n int, err error) {
+func (atvrs *activeReadSeeker) Read(p []byte) (n int, err error) {
 	return atvrs.atvrsio.Read(p)
 }
 
-func (atvparse *ActiveParser) code() (s string) {
+func (atvparse *activeParser) code() (s string) {
 
 	return s
 }
 
-func (atvparse *ActiveParser) parse(rs io.ReadSeeker, root string, path string, retrieveRS func(string, string) (io.ReadSeeker, error)) (parseerr error) {
+func (atvparse *activeParser) parse(rs io.ReadSeeker, root string, path string, retrieveRS func(string, string) (io.ReadSeeker, error)) (parseerr error) {
 	if atvparse.retrieveRS == nil || &atvparse.retrieveRS != &retrieveRS {
 		atvparse.retrieveRS = retrieveRS
 	}
@@ -333,34 +328,35 @@ func (atvparse *ActiveParser) parse(rs io.ReadSeeker, root string, path string, 
 
 	parseerr = parseNextToken(nil, atvparse, path)
 
-	if parseerr == nil && atvparse.atvrspntsentries != nil && len(atvparse.atvrspntsentries) > 0 {
-		atvparse.evalStartActiveEntryPoint(atvparse.atvtrsstartpoint)
+	if parseerr == nil && atvparse.atvtrsstart != nil {
+		atvparse.evalStartActiveEntryPoint(atvparse.atvtrsstart)
 	} else {
 		fmt.Println(parseerr)
 	}
 	return
 }
 
-func parseNextToken(token *ActiveParseToken, atvparse *ActiveParser, rspath string) (parseErr error) {
-	atvtoken := nextActiveParseToken(nil, atvparse, rspath)
+func parseNextToken(token *activeParseToken, atvparse *activeParser, rspath string) (parseErr error) {
+	atvtoken := nextactiveParseToken(token, atvparse, rspath)
 
 	var tokenparsed bool
 	var tokenerr error
-	var prevtoken *ActiveParseToken
+	var prevtoken *activeParseToken
 	for {
 		if tokenparsed, tokenerr = atvtoken.parsing(); tokenparsed || tokenerr != nil {
 			if tokenparsed && tokenerr == nil {
-				atvtoken.wrapupActiveParseToken()
+				atvtoken.wrapupactiveParseToken()
 			}
-			prevtoken, tokenerr = atvtoken.cleanupActiveParseToken()
+			prevtoken, tokenerr = atvtoken.cleanupactiveParseToken()
 			if tokenerr != nil {
 				parseErr = tokenerr
 				for prevtoken != nil {
-					prevtoken, _ = prevtoken.cleanupActiveParseToken()
+					prevtoken, _ = prevtoken.cleanupactiveParseToken()
 				}
+				break
 			}
 			atvtoken = prevtoken
-			if atvtoken == nil {
+			if atvtoken == token {
 				break
 			}
 		}
@@ -368,10 +364,10 @@ func parseNextToken(token *ActiveParseToken, atvparse *ActiveParser, rspath stri
 	return
 }
 
-func (atvparse *ActiveParser) evalStartActiveEntryPoint(atvrsstartpoint *activeReadSeekerPoint) {
-	if !atvrsstartpoint.atvrs.cdeRS.Empty() {
+func (atvparse *activeParser) evalStartActiveEntryPoint(atvrsstart *activeReadSeeker) {
+	if !atvrsstart.cdeRS.Empty() {
 		s := ""
-		s = atvrsstartpoint.atvrs.cdeRS.String()
+		s += atvrsstart.cdeRS.String()
 		atvparse.atv.evalCode(func() string {
 			return s
 		}, map[string]interface{}{"_out": atvparse.atv.Out(), "_atvparse": atvparse, "_parameters": atvparse.atv.params, "@db@execute": func(alias string, query string, args ...interface{}) *DBExecuted {
@@ -380,11 +376,11 @@ func (atvparse *ActiveParser) evalStartActiveEntryPoint(atvrsstartpoint *activeR
 			return DatabaseManager().Query(alias, query, args...)
 		}})
 	} else {
-		atvrsstartpoint.atvrs.writeAllContent(atvparse.atv.w)
+		atvrsstart.writeAllContent(atvparse.atv.w)
 	}
 }
 
-func nextActiveParseToken(token *ActiveParseToken, parser *ActiveParser, rspath string) (nexttoken *ActiveParseToken) {
+func nextactiveParseToken(token *activeParseToken, parser *activeParser, rspath string) (nexttoken *activeParseToken) {
 	rspathext := filepath.Ext(rspath)
 	rspathname := rspath
 	rsroot := rspath
@@ -400,13 +396,18 @@ func nextActiveParseToken(token *ActiveParseToken, parser *ActiveParser, rspath 
 		rspathname = strings.ReplaceAll(rspathname, "/", ":")
 	}
 
-	nexttoken = &ActiveParseToken{startRIndex: 0, endRIndex: 0, prevtoken: token, parse: parser, tknrb: make([]byte, 1), curStartIndex: -1, curEndIndex: -1, rsroot: rsroot, rspath: rspath, atvRStartIndex: -1, atvREndIndex: -1, tokenMde: tokenActive}
+	if parser.atvTkns == nil {
+		parser.atvTkns = map[*activeParseToken]*activeParseToken{}
+	}
+
+	nexttoken = &activeParseToken{startRIndex: 0, endRIndex: 0, parse: parser, tknrb: make([]byte, 1), curStartIndex: -1, curEndIndex: -1, rsroot: rsroot, rspath: rspath, atvRStartIndex: -1, atvREndIndex: -1, tokenMde: tokenActive}
 	nexttoken.atvlbls = []string{"<@", "@>"}
 	nexttoken.psvlbls = []string{nexttoken.atvlbls[0][0 : len(nexttoken.atvlbls)-1], nexttoken.atvlbls[1][1:]}
 	nexttoken.atvlblsi = []int{0, 0}
 	nexttoken.parkedStartIndex = -1
 	nexttoken.parkedEndIndex = -1
 	nexttoken.parkedLevel = 0
+	parser.atvTkns[nexttoken] = token
 	//nexttoken.psvlblsi = []int{0, 0}
 	nexttoken.atvrs = parser.atvrs(rspath)
 	return nexttoken
@@ -419,8 +420,8 @@ const (
 	tokenPassive tokenMode = 1
 )
 
-type ActiveParseToken struct {
-	parse            *ActiveParser
+type activeParseToken struct {
+	parse            *activeParser
 	atvlbls          []string
 	atvlblsi         []int
 	atvprevb         byte
@@ -431,10 +432,9 @@ type ActiveParseToken struct {
 	tknrb            []byte
 	nr               int
 	rerr             error
-	atvrs            *ActiveReadSeeker //   io.ReadSeeker
+	atvrs            *activeReadSeeker //   io.ReadSeeker
 	curStartIndex    int64
 	curEndIndex      int64
-	prevtoken        *ActiveParseToken
 	rspath           string
 	rsroot           string
 	rspathname       string
@@ -454,22 +454,29 @@ type ActiveParseToken struct {
 	tokenMde       tokenMode
 }
 
-func (token *ActiveParseToken) appendCde(atvrs *ActiveReadSeeker, atvRStartIndex int64, atvREndIndex int64) {
+func (token *activeParseToken) prevToken() *activeParseToken {
+	if token.parse != nil && token.parse.atvTkns != nil {
+		return token.parse.atvTkns[token]
+	}
+	return nil
+}
+
+func (token *activeParseToken) appendCde(atvrs *activeReadSeeker, atvRStartIndex int64, atvREndIndex int64) {
 	atvrs.cdeRS.Append(atvRStartIndex, atvREndIndex)
 }
 
-func (token *ActiveParseToken) appendCntnt(atvrs *ActiveReadSeeker, psvRStartIndex int64, psvREndIndex int64) {
+func (token *activeParseToken) appendCntnt(atvrs *activeReadSeeker, psvRStartIndex int64, psvREndIndex int64) {
 	atvrs.cntntRS.Append(psvRStartIndex, psvREndIndex)
 }
 
-func (token *ActiveParseToken) wrapupActiveParseToken() {
+func (token *activeParseToken) wrapupactiveParseToken() {
 	if token.atvrs != nil {
 		if !token.atvrs.cdeRS.Empty() {
 			if !token.atvrs.cdeRS.Empty() {
 				if token.atvrs.cdeRS.cntntseekriendpos == nil || len(token.atvrs.cdeRS.cntntseekriendpos) == 0 {
 					if token.atvrs.cntntRS.lastStartRsI > -1 && token.atvrs.cntntRS.lastStartRsI <= token.atvrs.cntntRS.lastEndRsI {
 						cntntrsseeki := make([]int, (token.atvrs.cntntRS.lastEndRsI-token.atvrs.cntntRS.lastStartRsI)+1)
-						for cntntrsseekin, _ := range cntntrsseeki {
+						for cntntrsseekin := range cntntrsseeki {
 							cntntrsseeki[cntntrsseekin] = token.atvrs.cntntRS.lastStartRsI
 							token.atvrs.cntntRS.lastStartRsI++
 						}
@@ -479,15 +486,15 @@ func (token *ActiveParseToken) wrapupActiveParseToken() {
 						cntntrsseeki = nil
 					}
 				}
-				token.parse.appendActiveRSPoint(token.atvrs, token.prevtoken == nil)
+				token.parse.appendActiveRSPoint(token.atvrs, token.parse.atvTkns == nil || token.parse.atvTkns[token] == nil)
 			}
 		} else if !token.atvrs.cntntRS.Empty() {
-			token.parse.appendActiveRSPoint(token.atvrs, token.prevtoken == nil)
+			token.parse.appendActiveRSPoint(token.atvrs, token.parse.atvTkns == nil || token.parse.atvTkns[token] == nil)
 		}
 	}
 }
 
-func (token *ActiveParseToken) cleanupActiveParseToken() (prevtoken *ActiveParseToken, err error) {
+func (token *activeParseToken) cleanupactiveParseToken() (prevtoken *activeParseToken, err error) {
 	if token.atvlbls != nil {
 		token.atvlbls = nil
 	}
@@ -495,12 +502,15 @@ func (token *ActiveParseToken) cleanupActiveParseToken() (prevtoken *ActiveParse
 		token.atvlblsi = nil
 	}
 	if token.parse != nil {
+		if token.parse.atvTkns != nil {
+			if _, tokenOk := token.parse.atvTkns[token]; tokenOk {
+				prevtoken = token.parse.atvTkns[token]
+				delete(token.parse.atvTkns, token)
+			}
+		}
 		token.parse = nil
 	}
-	if token.prevtoken != nil {
-		prevtoken = token.prevtoken
-		token.prevtoken = nil
-	}
+
 	if token.psvlbls != nil {
 		token.psvlbls = nil
 	}
@@ -518,38 +528,38 @@ func (token *ActiveParseToken) cleanupActiveParseToken() (prevtoken *ActiveParse
 	if token.tknrb != nil {
 		token.tknrb = nil
 	}
+
 	return prevtoken, err
 }
 
-func (token *ActiveParseToken) passiveCapturedIO() *IORW {
+func (token *activeParseToken) passiveCapturedIO() *IORW {
 	if token.psvCapturedIO == nil {
 		token.psvCapturedIO, _ = NewIORW()
 	}
 	return token.psvCapturedIO
 }
 
-func (token *ActiveParseToken) passiveUnvalidatedIO() *IORW {
+func (token *activeParseToken) passiveUnvalidatedIO() *IORW {
 	if token.psvUnvalidatedIO == nil {
 		token.psvUnvalidatedIO, _ = NewIORW()
 	}
 	return token.psvUnvalidatedIO
 }
 
-func (token *ActiveParseToken) parsing() (parsed bool, err error) {
+func (token *activeParseToken) parsing() (parsed bool, err error) {
 	if token.tokenMde == tokenActive {
 		return token.parsingActive()
-	} else {
-		err = fmt.Errorf("INVALID PARSING POINT READ")
 	}
+	err = fmt.Errorf("INVALID PARSING POINT READ")
 	return parsed, err
 }
 
-func (token *ActiveParseToken) parsingActive() (parsed bool, err error) {
+func (token *activeParseToken) parsingActive() (parsed bool, err error) {
 	token.nr, token.rerr = token.parse.readActive(token)
 	return parseActiveToken(token, token.atvlbls, token.atvlblsi)
 }
 
-func parseActiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (nextparse bool, err error) {
+func parseActiveToken(token *activeParseToken, lbls []string, lblsi []int) (nextparse bool, err error) {
 	if token.nr > 0 {
 		if lblsi[1] == 0 && lblsi[0] < len(lbls[0]) {
 			if lblsi[0] > 1 && lbls[0][lblsi[0]-1] == token.atvprevb && lbls[0][lblsi[0]] != token.tknrb[0] {
@@ -568,63 +578,62 @@ func parseActiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (next
 				if len(lbls[0]) == lblsi[0] {
 					token.atvprevb = 0
 					return nextparse, err
-				} else {
-					token.atvprevb = token.tknrb[0]
-					return nextparse, err
-				}
-			} else {
-				if token.curStartIndex == -1 {
-					if lblsi[0] > 0 {
-						token.curStartIndex = token.startRIndex - int64(lblsi[0])
-					} else {
-						token.curStartIndex = token.startRIndex
-					}
-				}
-				if lblsi[0] > 0 {
-					if token.psvCapturedIO != nil && !token.psvCapturedIO.Empty() {
-						token.psvCapturedIO.Close()
-					}
-					token.passiveCapturedIO().Print(lbls[0][:lblsi[0]])
-					lblsi[0] = 0
 				}
 				token.atvprevb = token.tknrb[0]
-				token.passiveCapturedIO().Print(token.tknrb)
+				return nextparse, err
+			}
+			if token.curStartIndex == -1 {
+				if lblsi[0] > 0 {
+					token.curStartIndex = token.startRIndex - int64(lblsi[0])
+				} else {
+					token.curStartIndex = token.startRIndex
+				}
+			}
+			if lblsi[0] > 0 {
+				if token.psvCapturedIO != nil && !token.psvCapturedIO.Empty() {
+					token.psvCapturedIO.Close()
+				}
+				token.passiveCapturedIO().Print(lbls[0][:lblsi[0]])
+				lblsi[0] = 0
+			}
+			token.atvprevb = token.tknrb[0]
+			token.passiveCapturedIO().Print(token.tknrb)
 
-				if token.psvCapturedIO != nil && !token.psvCapturedIO.Empty() && token.psvCapturedIO.HasSuffix([]byte(token.psvlbls[1])) {
-					if token.psvCapturedIO.HasPrefixSuffix([]byte(token.psvlbls[0]), []byte(token.psvlbls[1])) {
-						if valid, single, complexStart, complexEnd, elemName, elemPath, elemExt, valErr := validatePassiveCapturedIO(token); valid {
-							if single || complexStart {
-								if token.curStartIndex > -1 {
-									if token.curEndIndex == -1 {
-										token.curEndIndex = token.lastEndRIndex - token.psvCapturedIO.Size()
-									}
-									if token.tknrb, err = parseCurrentPassiveTokenStartEnd(token, token.atvrs, token.lastEndRIndex, token.rerr != nil && token.rerr == io.EOF, token.curStartIndex, token.curEndIndex, token.startRIndex); err != nil {
-										return nextparse, err
-									}
+			if token.psvCapturedIO != nil && !token.psvCapturedIO.Empty() && token.psvCapturedIO.HasSuffix([]byte(token.psvlbls[1])) {
+				if token.psvCapturedIO.HasPrefixSuffix([]byte(token.psvlbls[0]), []byte(token.psvlbls[1])) {
+					if valid, single, complexStart, complexEnd, elemName, elemPath, elemExt, valErr := validatePassiveCapturedIO(token); valid {
+						if single || complexStart {
+							if token.curStartIndex > -1 {
+								if token.curEndIndex == -1 {
+									token.curEndIndex = token.lastEndRIndex - token.psvCapturedIO.Size()
 								}
-								if single || complexEnd {
-									if elemName != "" && elemPath != "" && elemExt != "" {
-										if !strings.HasPrefix(elemPath, "./") {
-											if token.rsroot != "" {
-												elemPath = token.rsroot + elemPath
-											}
+								if token.tknrb, err = parseCurrentPassiveTokenStartEnd(token, token.atvrs, token.lastEndRIndex, token.rerr != nil && token.rerr == io.EOF, token.curStartIndex, token.curEndIndex, token.startRIndex); err != nil {
+									return nextparse, err
+								}
+							}
+							if single || complexEnd {
+								if elemName != "" && elemPath != "" && elemExt != "" {
+									if !strings.HasPrefix(elemPath, "./") {
+										if token.rsroot != "" {
+											elemPath = token.rsroot + elemPath
 										}
-										if err = token.parse.setRSByPath(elemPath); err == nil {
-											parseNextToken(token, token.parse, elemPath)
-										}
+									}
+									if err = token.parse.setRSByPath(elemPath); err == nil {
+										parseNextToken(token, token.parse, elemPath)
 									}
 								}
 							}
-						} else if valErr != nil {
-							err = valErr
-							return nextparse, err
 						}
+					} else if valErr != nil {
+						err = valErr
+						return nextparse, err
 					}
-					token.psvCapturedIO.Close()
 				}
-
-				return nextparse, err
+				token.psvCapturedIO.Close()
 			}
+
+			return nextparse, err
+
 		} else if lblsi[0] == len(lbls[0]) && lblsi[1] < len(lbls[1]) {
 			if lbls[1][lblsi[1]] == token.tknrb[0] {
 				lblsi[1]++
@@ -645,37 +654,36 @@ func parseActiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (next
 					lblsi[0] = 0
 					lblsi[1] = 0
 					return nextparse, err
-				} else {
-					return nextparse, err
-				}
-			} else {
-				if token.curStartIndex > -1 {
-					if token.curEndIndex == -1 {
-						token.curEndIndex = token.lastEndRIndex - 1 - int64(len(lbls[1]))
-					}
-					if token.tknrb, err = parseCurrentPassiveTokenStartEnd(token, token.atvrs, token.lastEndRIndex, token.rerr != nil && token.rerr == io.EOF, token.curStartIndex, token.curEndIndex, token.startRIndex); err != nil {
-						return nextparse, err
-					}
-				}
-				if !token.hasAtv && strings.TrimSpace(string(token.tknrb)) != "" {
-					token.hasAtv = true
-				}
-
-				if lblsi[1] > 0 {
-					lblsi[1] = 0
-				}
-
-				if token.hasAtv {
-					if token.atvRStartIndex == -1 {
-						token.atvRStartIndex = token.startRIndex
-					}
-
-					if token.hasAtv && token.atvRStartIndex > -1 && strings.TrimSpace(string(token.tknrb)) != "" {
-						token.atvREndIndex = token.startRIndex
-					}
 				}
 				return nextparse, err
 			}
+			if token.curStartIndex > -1 {
+				if token.curEndIndex == -1 {
+					token.curEndIndex = token.lastEndRIndex - 1 - int64(len(lbls[1]))
+				}
+				if token.tknrb, err = parseCurrentPassiveTokenStartEnd(token, token.atvrs, token.lastEndRIndex, token.rerr != nil && token.rerr == io.EOF, token.curStartIndex, token.curEndIndex, token.startRIndex); err != nil {
+					return nextparse, err
+				}
+			}
+			if !token.hasAtv && strings.TrimSpace(string(token.tknrb)) != "" {
+				token.hasAtv = true
+			}
+
+			if lblsi[1] > 0 {
+				lblsi[1] = 0
+			}
+
+			if token.hasAtv {
+				if token.atvRStartIndex == -1 {
+					token.atvRStartIndex = token.startRIndex
+				}
+
+				if token.hasAtv && token.atvRStartIndex > -1 && strings.TrimSpace(string(token.tknrb)) != "" {
+					token.atvREndIndex = token.startRIndex
+				}
+			}
+			return nextparse, err
+
 		}
 	} else if token.rerr == io.EOF {
 		if token.curStartIndex > -1 && token.curEndIndex == -1 {
@@ -689,7 +697,7 @@ func parseActiveToken(token *ActiveParseToken, lbls []string, lblsi []int) (next
 	return nextparse, err
 }
 
-func validatePassiveCapturedIO(token *ActiveParseToken) (valid bool, single bool, comlexStart bool, complexEnd bool, elemName string, elemPath string, elemExt string, err error) {
+func validatePassiveCapturedIO(token *activeParseToken) (valid bool, single bool, comlexStart bool, complexEnd bool, elemName string, elemPath string, elemExt string, err error) {
 	if actualSize := (token.psvCapturedIO.Size() - int64(len(token.psvlbls[0])+len(token.psvlbls[1]))); actualSize >= 1 {
 		if valid = (actualSize == 1 && token.psvCapturedIO.String() == "/"); !valid {
 			token.psvCapturedIO.Seek(int64(len(token.psvlbls[0])), 0)
@@ -785,7 +793,7 @@ func validatePassiveCapturedIO(token *ActiveParseToken) (valid bool, single bool
 	return
 }
 
-func parseCurrentPassiveTokenStartEnd(token *ActiveParseToken, curatvrs *ActiveReadSeeker, lastEndRIndex int64, eof bool, curStartIndex, curEndIndex, startRIndex int64) (lasttknrb []byte, err error) {
+func parseCurrentPassiveTokenStartEnd(token *activeParseToken, curatvrs *activeReadSeeker, lastEndRIndex int64, eof bool, curStartIndex, curEndIndex, startRIndex int64) (lasttknrb []byte, err error) {
 	token.curStartIndex = -1
 	token.curEndIndex = -1
 	lasttknrb = token.tknrb[:]
@@ -799,7 +807,7 @@ func parseCurrentPassiveTokenStartEnd(token *ActiveParseToken, curatvrs *ActiveR
 //ActiveProcessor - ActiveProcessor
 type ActiveProcessor struct {
 	vm               *goja.Runtime
-	atvParser        *ActiveParser
+	atvParser        *activeParser
 	w                io.Writer
 	out              *IORW
 	outprint         *widgeting.OutPrint
@@ -807,10 +815,12 @@ type ActiveProcessor struct {
 	params           *Parameters
 }
 
+//Parameters current active process Parameters container
 func (atvpros *ActiveProcessor) Parameters() *Parameters {
 	return atvpros.params
 }
 
+//Out current acive process out put handle
 func (atvpros *ActiveProcessor) Out() *widgeting.OutPrint {
 	if atvpros.outprint == nil {
 		atvpros.outprint = widgeting.NewOutPrint(func(a ...interface{}) {
@@ -840,18 +850,18 @@ type vmeval struct {
 	err  error
 }
 
-func (atvpro *ActiveProcessor) evalCode(cdefunc func() string, refelems ...map[string]interface{}) (err error) {
-	if atvpro.vm == nil {
-		atvpro.vm = goja.New()
+func (atvpros *ActiveProcessor) evalCode(cdefunc func() string, refelems ...map[string]interface{}) (err error) {
+	if atvpros.vm == nil {
+		atvpros.vm = goja.New()
 	}
 	if len(refelems) > 0 {
 		for elemname, elem := range refelems[0] {
-			atvpro.vm.Set(elemname, elem)
+			atvpros.vm.Set(elemname, elem)
 		}
 	}
 	s := cdefunc()
 
-	vmeval := &vmeval{vm: atvpro.vm, code: s, done: make(chan bool, 1)}
+	vmeval := &vmeval{vm: atvpros.vm, code: s, done: make(chan bool, 1)}
 	vmelalqueue <- vmeval
 
 	if <-vmeval.done {
@@ -863,8 +873,8 @@ func (atvpro *ActiveProcessor) evalCode(cdefunc func() string, refelems ...map[s
 	}
 
 	if len(refelems) > 0 {
-		for elemname, _ := range refelems[0] {
-			atvpro.vm.Set(elemname, nil)
+		for elemname := range refelems[0] {
+			atvpros.vm.Set(elemname, nil)
 		}
 	}
 	refelems = nil
@@ -872,24 +882,17 @@ func (atvpro *ActiveProcessor) evalCode(cdefunc func() string, refelems ...map[s
 	return err
 }
 
-/*func isJsExtension(extfound string) bool {
-	if strings.HasPrefix(extfound, ".") {
-		extfound = extfound[1:]
-	}
-	return strings.Index(","+",js,json,css"+",", ","+extfound+",") > -1
-}*/
-
 //NewActiveProcessor new ActiveProcessor
 func NewActiveProcessor(w io.Writer) *ActiveProcessor {
-	var atv *ActiveProcessor = &ActiveProcessor{w: w, canCleanupParams: true}
+	var atv = &ActiveProcessor{w: w, canCleanupParams: true}
 	atv.out, _ = NewIORW(atv.w)
-	atv.atvParser = &ActiveParser{atv: atv, atvTkns: map[*ActiveParseToken]*ActiveParseToken{}}
+	atv.atvParser = &activeParser{atv: atv, atvTkns: map[*activeParseToken]*activeParseToken{}}
 	return atv
 }
 
 func (atvpros *ActiveProcessor) cleanupActiveProcessor() {
 	if atvpros.atvParser != nil {
-		atvpros.atvParser.cleanupActiveParser()
+		atvpros.atvParser.cleanupactiveParser()
 		atvpros.atvParser = nil
 	}
 	if atvpros.out != nil {
@@ -915,6 +918,17 @@ type activeCommandDefinition struct {
 	atvCmdHndlr ActiveCommandHandler
 }
 
+//MapActiveCommand map a resource path to a list if ActiveCommandHandler(s) by command name
+//e.g.
+// lnksworks.MapActiveCommand("test/test.html",
+//		"testcommand", func(atvpros *lnksworks.ActiveProcessor, path string, a ...string) (err error) {
+//		atvpros.Out().Elem("span", func(out *widgeting.OutPrint, a ...interface{}) {
+//			out.Print("content in span")
+//		})
+//		return err
+//		},
+//	)
+//
 func MapActiveCommand(path string, a ...interface{}) {
 	if len(a) > 0 && len(a)%2 == 0 {
 		ai := 0
@@ -924,7 +938,7 @@ func MapActiveCommand(path string, a ...interface{}) {
 			activeModuledCommands[path] = atvcmddefs
 			for ai < len(a) {
 				if atvcmdname, atvcmdnameok := a[ai].(string); atvcmdnameok {
-					if atvcmdhndlr, atvcmdhndlrok := a[ai+1].(func(*ActiveProcessor, string, ...string) error); atvcmdhndlrok {
+					if atvcmdhndlr, atvcmdhndlrok := a[ai+1].(ActiveCommandHandler); atvcmdhndlrok {
 						atvcmddefs[atvcmdname] = atvcmdhndlr
 					}
 				}
@@ -940,7 +954,6 @@ func MapActiveCommand(path string, a ...interface{}) {
 				ai = ai + 2
 			}
 		}
-
 	}
 }
 
@@ -997,14 +1010,21 @@ func init() {
 	}
 }
 
-type ActiveCommandHandler = func(*ActiveProcessor, string, ...string) error
+//ActiveCommandHandler definition of func that impliments the function that needs to be applied
+// by the command mapped in MapActiveCommand
+type ActiveCommandHandler = func(atvpros *ActiveProcessor, path string, a ...string) error
 
 func execCommand(atvpros *ActiveProcessor, path string, atvCmdHndlr ActiveCommandHandler, a ...string) (err error) {
 	err = atvCmdHndlr(atvpros, path, a...)
 	return err
 }
 
-func (atvpros *ActiveProcessor) Process(rs io.ReadSeeker, root string, path string, retrieveRS func(root string, path string) (rsfound io.ReadSeeker, rsfounderr error)) {
+//Process main method that apply the active process
+//rs - io.ReadSeeker of active content
+//root - root path of rs
+//path - path that active content can be found
+//retrieveRS - func reference to a implementation base on RetrieveRSFunc definition
+func (atvpros *ActiveProcessor) Process(rs io.ReadSeeker, root string, path string, retrieveRS RetrieveRSFunc) {
 	if atvcmddefs, atvcmdefsok := activeModuledCommands[path]; atvcmdefsok && atvpros.params.ContainsParameter("COMMAND") {
 		commands := atvpros.params.Parameter("COMMAND")
 		cmdn := 0
@@ -1028,9 +1048,9 @@ func (atvpros *ActiveProcessor) Process(rs io.ReadSeeker, root string, path stri
 			}
 		}
 
-		var executeCommand func(*ActiveProcessor, string, ActiveCommandHandler, ...string) error = execCommand
+		var executeCommand = execCommand
 
-		for cmdtoexecn, _ := range commands {
+		for cmdtoexecn := range commands {
 			if err := executeCommand(atvpros, path, cmdhnlrs[cmdtoexecn], cmdhnlrparams[cmdtoexecn]...); err != nil {
 				fmt.Println(err)
 				break
@@ -1039,12 +1059,4 @@ func (atvpros *ActiveProcessor) Process(rs io.ReadSeeker, root string, path stri
 	} else {
 		atvpros.atvParser.parse(rs, root, path, retrieveRS)
 	}
-}
-
-func (atvpros *ActiveProcessor) Seek(offset int64, whence int) (seekedi int64, err error) {
-	return seekedi, err
-}
-
-func (atvpros *ActiveProcessor) Read(p []byte) (n int, err error) {
-	return n, err
 }

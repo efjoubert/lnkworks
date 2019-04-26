@@ -150,12 +150,11 @@ func (ioRW *IORW) SeekIndex() int64 {
 	if ioRW.altR == nil {
 		if ioRW.cur == nil {
 			return -1
-		} else {
-			return ioRW.cur.SeekIndex()
 		}
-	} else {
-		return ioRW.altRIndex
+		return ioRW.cur.SeekIndex()
+
 	}
+	return ioRW.altRIndex
 }
 
 func (ioRW *IORW) FileInfo() os.FileInfo {
@@ -1005,31 +1004,42 @@ func (ioRWCur *ReadWriteCursor) Close() (err error) {
 	return err
 }
 
-type IOSeekReader struct {
-	ioRS      io.ReadSeeker
+type SeekOutput interface {
+	Append(int64, int64)
+}
+
+type Seeker struct {
 	seekis    [][]int64
 	seekindex int
-	rbuf      []byte
+}
+
+func (sker *Seeker) ClearSeeker() {
+	if sker.seekis != nil {
+		for len(sker.seekis) > 0 {
+			sker.seekis[0] = nil
+			if len(sker.seekis) > 1 {
+				sker.seekis = sker.seekis[1:]
+			} else {
+				break
+			}
+		}
+		sker.seekis = nil
+	}
+}
+
+type IOSeekReader struct {
+	*Seeker
+	ioRS io.ReadSeeker
+	rbuf []byte
 }
 
 func NewIOSeekReader(ioRS io.ReadSeeker) *IOSeekReader {
-	return &IOSeekReader{ioRS: ioRS}
+	return &IOSeekReader{Seeker: &Seeker{}, ioRS: ioRS}
 }
 
 func (iosr *IOSeekReader) ClearIOSeekReader() {
 	if iosr.ioRS != nil {
 		iosr.ioRS = nil
-	}
-	if iosr.seekis != nil {
-		for len(iosr.seekis) > 0 {
-			iosr.seekis[0] = nil
-			if len(iosr.seekis) > 1 {
-				iosr.seekis = iosr.seekis[1:]
-			} else {
-				break
-			}
-		}
-		iosr.seekis = nil
 	}
 	if iosr.rbuf != nil {
 		iosr.rbuf = nil
@@ -1047,8 +1057,8 @@ func (iosr *IOSeekReader) Size() int {
 }
 
 type IOSeekReaderOutput interface {
+	SeekOutput
 	WriteSeekedPos(io.Writer, int, int) error
-	Append(int64, int64)
 }
 
 type IOSeekReaderInput interface {

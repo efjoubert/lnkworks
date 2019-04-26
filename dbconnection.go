@@ -5,6 +5,7 @@ import (
 	"strings"
 )
 
+//DbConnection DbConnection controller
 type DbConnection struct {
 	driver         string
 	datasourcename string
@@ -12,18 +13,21 @@ type DbConnection struct {
 	dbmngr         *DbManager
 }
 
-func (cn *DbConnection) Execute(query string, args ...interface{}) (lastInsertId int64, rowsAffected int64, err error) {
+//Execute - Execute (query) refer to golang sql connection Execute method
+func (cn *DbConnection) Execute(query string, args ...interface{}) (lastInsertID int64, rowsAffected int64, err error) {
 	stmnt := &DbStatement{cn: cn}
-	lastInsertId, rowsAffected, err = stmnt.Execute(query, args...)
+	lastInsertID, rowsAffected, err = stmnt.Execute(query, args...)
 	stmnt = nil
-	return lastInsertId, rowsAffected, err
+	return
 }
 
+//ParseQuery parse query and return parsed query based on db connection type and list of paramnames
+//query e.g 'SELECT :TEST-PARAM AS param' where :TEST-PARAM is name of parameter
 func (cn *DbConnection) ParseQuery(query string) (parsedquery string, params []string) {
 	startParam := false
 	startText := false
 	pname := ""
-	for n, _ := range query {
+	for n := range query {
 		c := string(query[n])
 		if startParam {
 			if strings.TrimSpace(c) == "" || strings.Index("[](),@$%&|!<>$*+-'", c) > -1 {
@@ -84,6 +88,8 @@ func (cn *DbConnection) ParseQuery(query string) (parsedquery string, params []s
 	return parsedquery, params
 }
 
+//Query - Query (query) refer to golang sql connection Query method
+//except that it returns and DbResultSet that extends standard resultset functionality
 func (cn *DbConnection) Query(query string, args ...interface{}) (rset *DbResultSet, err error) {
 	stmnt := &DbStatement{cn: cn}
 	rset, err = stmnt.Query(query, args...)

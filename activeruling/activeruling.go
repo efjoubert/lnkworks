@@ -138,13 +138,15 @@ func executeScheduleActions(schdl *Schedule, tikStamp time.Time) {
 		wg := &sync.WaitGroup{}
 		wg.Add(len(actions))
 		for _, a := range actions {
-			go func() {
-				defer wg.Done()
-				a(schdlname, tikStamp)
-			}()
+			go execSchdlAction(a, schdlname, wg, tikStamp)
 		}
 		wg.Wait()
 	}
+}
+
+func execSchdlAction(a func(string, time.Time), schdlname string, wg *sync.WaitGroup, tikStamp time.Time) {
+	defer wg.Done()
+	a(schdlname, tikStamp)
 }
 
 type Action struct {
@@ -366,6 +368,7 @@ func executeAction(acn *Action) (prvNxtAcn *Action) {
 }
 
 //Support io.Reader and string
+
 func ReadAndExecuteFowInstructions(a ...interface{}) {
 
 }

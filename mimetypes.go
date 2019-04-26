@@ -699,6 +699,7 @@ Zzazz Deck	application/vnd.zzazz.deck+xml	.zaz	IANA: Zzazz`
 
 var mimeTypesCache map[string][]string
 
+//FindMimeTypeByExt method that accepts ext [extension] and defaultext [default extension] and returns the appropriate mime type
 func FindMimeTypeByExt(ext string, defaultExt string) (mimetype string, extfound string) {
 	if mimeTypesCache == nil {
 		mimeTypesCache = make(map[string][]string)

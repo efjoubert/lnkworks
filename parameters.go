@@ -22,7 +22,7 @@ func (params *Parameters) StandardKeys() (keys []string) {
 			keys = make([]string, len(params.standard))
 		}
 		ki := 0
-		for k, _ := range params.standard {
+		for k := range params.standard {
 			keys[ki] = k
 			ki++
 		}
@@ -37,7 +37,7 @@ func (params *Parameters) FileKeys() (keys []string) {
 			keys = make([]string, len(params.standard))
 		}
 		ki := 0
-		for k, _ := range params.standard {
+		for k := range params.standard {
 			keys[ki] = k
 			ki++
 		}
@@ -165,14 +165,15 @@ func (params *Parameters) Parameter(pname string) []string {
 	return emptyParmVal
 }
 
+//StringParameter return parameter as string concatenated with sep
 func (params *Parameters) StringParameter(pname string, sep string) string {
 	if pval := params.Parameter(pname); len(pval) > 0 {
 		return strings.Join(pval, sep)
-	} else {
-		return ""
 	}
+	return ""
 }
 
+//FileParameter return file paramater - array of file
 func (params *Parameters) FileParameter(pname string) []interface{} {
 	if pname = strings.ToUpper(strings.TrimSpace(pname)); pname != "" {
 		if params.filesdata != nil {
@@ -184,6 +185,7 @@ func (params *Parameters) FileParameter(pname string) []interface{} {
 	return emptyParamFile
 }
 
+//CleanupParameters function that can be called to assist in cleaning up instance of Parameter container
 func (params *Parameters) CleanupParameters() {
 	if params.standard != nil {
 		for pname := range params.standard {
@@ -201,6 +203,7 @@ func (params *Parameters) CleanupParameters() {
 	}
 }
 
+//NewParameters return new instance of Paramaters container
 func NewParameters() *Parameters {
 	return &Parameters{}
 }
