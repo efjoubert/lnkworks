@@ -1013,6 +1013,13 @@ type Seeker struct {
 	seekindex int
 }
 
+func (sker *Seeker) Append(starti int64, endi int64) {
+	if sker.seekis == nil {
+		sker.seekis = [][]int64{}
+	}
+	sker.seekis = append(sker.seekis, []int64{starti, endi})
+}
+
 func (sker *Seeker) ClearSeeker() {
 	if sker.seekis != nil {
 		for len(sker.seekis) > 0 {
@@ -1170,13 +1177,6 @@ func (iosr *IOSeekReader) WriteSeekedPos(w io.Writer, pos int, bufsize int) (err
 		}
 	}
 	return err
-}
-
-func (iosr *IOSeekReader) Append(starti int64, endi int64) {
-	if iosr.seekis == nil {
-		iosr.seekis = [][]int64{}
-	}
-	iosr.seekis = append(iosr.seekis, []int64{starti, endi})
 }
 
 func (iosr *IOSeekReader) Read(p []byte) (n int, err error) {

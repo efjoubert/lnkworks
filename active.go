@@ -22,9 +22,12 @@ type activeParser struct {
 	atvrsmap         map[string]*activeReadSeeker
 	atvrscntntcdemap map[int]*activeReadSeeker
 	atvtrsstart      *activeReadSeeker
+	atvRsAPCStart    *activeRSActivePassiveContent
 	atvTkns          map[*activeParseToken]*activeParseToken
+	atvRsAPCMap      map[*activeRSActivePassiveContent]*activeRSActivePassiveContent
 }
 
+//Might be depricated
 func (atvparse *activeParser) appendActiveRSPoint(atvrs *activeReadSeeker, isStart bool) {
 	if isStart {
 		atvparse.atvtrsstart = atvrs
@@ -68,23 +71,84 @@ func (atvparse *activeParser) setRS(path string, rstomap io.ReadSeeker) {
 		if _, atvrsok := atvparse.atvrsmap[path]; !atvrsok {
 			atvrsio, _ := NewIORW(rstomap)
 			atvrs := &activeReadSeeker{atvrsio: atvrsio, atvparse: atvparse}
-			cntntrs := newContentSeekReader(atvrs)
-			atvrs.cntntRS = cntntrs
-			cders := newCodeSeekReader(atvrs, cntntrs)
-			atvrs.cdeRS = cders
 			atvparse.atvrsmap[path] = atvrs
 			atvparse.atvrscntntcdemap[len(atvparse.atvrsmap)-1] = atvrs
 		}
 	}
 }
 
-type activeRSItem struct {
-	cders   *contentSeekReader
-	cntntrs *contentSeekReader
+type activeRSActivePassiveContent struct {
+	*Seeker
+	cders               *codeSeekReader
+	cntntrs             *contentSeekReader
+	atvRsAtvPsvCntnts   []*activeRSActivePassiveContent
+	atvRsAtvPsvCntntMap map[int]*activeRSActivePassiveContent
+	atvparse            *activeParser
+}
+
+func newActiveRSActivePassiveContent(atvrs *activeReadSeeker, atvparse *activeParser) (atvRsAPC *activeRSActivePassiveContent) {
+	atvRsAPC = &activeRSActivePassiveContent{Seeker: &Seeker{}, atvparse: atvparse}
+	atvRsAPC.cntntrs = newContentSeekReader(atvRsAPC, atvrs)
+	atvRsAPC.cders = newCodeSeekReader(atvrs, atvRsAPC, atvRsAPC.cntntrs)
+	return
+}
+
+func (atvRsAPC *activeRSActivePassiveContent) writeAllContent(w io.Writer) {
+	if !atvRsAPC.cntntrs.Empty() {
+		if len(atvRsAPC.cntntrs.seekis) > 0 {
+			if atvRsAPC.atvparse.atv.out == nil {
+				for spos := range atvRsAPC.cntntrs.seekis {
+					atvRsAPC.cntntrs.WriteSeekedPos(w, spos, 0)
+				}
+			} else {
+				for spos := range atvRsAPC.cntntrs.seekis {
+					atvRsAPC.cntntrs.WriteSeekedPos(atvRsAPC.atvparse.atv.out, spos, 0)
+				}
+			}
+		}
+	}
+}
+
+func (atvRsAPC *activeRSActivePassiveContent) cleanupActiveRSActivePassiveContent() {
+	if atvRsAPC.Seeker != nil {
+		atvRsAPC.Seeker.ClearSeeker()
+		atvRsAPC.Seeker = nil
+	}
+	if atvRsAPC.atvRsAtvPsvCntntMap != nil {
+		for n, _ := range atvRsAPC.atvRsAtvPsvCntntMap {
+			atvRsAPC.atvRsAtvPsvCntntMap[n] = nil
+			delete(atvRsAPC.atvRsAtvPsvCntntMap, n)
+		}
+	}
+	if atvRsAPC.cders != nil {
+		atvRsAPC.cders.clearCodeSeekReader()
+		atvRsAPC.cders = nil
+	}
+	if atvRsAPC.cntntrs != nil {
+		atvRsAPC.cntntrs.clearContentSeekReader()
+		atvRsAPC.cntntrs = nil
+	}
+	if atvRsAPC.atvparse != nil {
+		atvRsAPC.atvparse = nil
+	}
+}
+
+func (atvRsAPC *activeRSActivePassiveContent) Append(atvRsAtvPsvCntnt *activeRSActivePassiveContent, starti int64, endi int64) {
+	if atvRsAPC.atvRsAtvPsvCntntMap == nil {
+		atvRsAPC.atvRsAtvPsvCntntMap = map[int]*activeRSActivePassiveContent{}
+	}
+	if atvRsAPC.atvRsAtvPsvCntnts == nil {
+		atvRsAPC.atvRsAtvPsvCntnts = []*activeRSActivePassiveContent{}
+	}
+
+	atvRsAPC.atvRsAtvPsvCntntMap[len(atvRsAPC.atvRsAtvPsvCntnts)] = atvRsAtvPsvCntnt
+	atvRsAPC.atvRsAtvPsvCntnts = append(atvRsAPC.atvRsAtvPsvCntnts, atvRsAtvPsvCntnt)
+	atvRsAPC.Seeker.Append(starti, endi)
 }
 
 type contentSeekReader struct {
 	atvrs        *activeReadSeeker
+	atvRsAPC     *activeRSActivePassiveContent
 	lastStartRsI int
 	lastEndRsI   int
 	*IOSeekReader
@@ -105,13 +169,14 @@ func (cntntsr *contentSeekReader) clearContentSeekReader() {
 		cntntsr.IOSeekReader.ClearIOSeekReader()
 		cntntsr.IOSeekReader = nil
 	}
-	if cntntsr.atvrs != nil {
-		cntntsr.atvrs = nil
+	if cntntsr.atvRsAPC != nil {
+		cntntsr.atvRsAPC = nil
 	}
 }
 
 type codeSeekReader struct {
-	atvrs *activeReadSeeker
+	atvRsAPC *activeRSActivePassiveContent
+	atvrs    *activeReadSeeker
 	*IOSeekReader
 	cntntsr           *contentSeekReader
 	lastCntntStartI   int64
@@ -184,24 +249,30 @@ func (cdesr *codeSeekReader) clearCodeSeekReader() {
 	}
 }
 
-func newContentSeekReader(atvrs *activeReadSeeker) *contentSeekReader {
-	cntntsr := &contentSeekReader{atvrs: atvrs, IOSeekReader: NewIOSeekReader(atvrs), lastStartRsI: -1, lastEndRsI: -1}
+func newContentSeekReader(atvRsAPC *activeRSActivePassiveContent, atvrs *activeReadSeeker) *contentSeekReader {
+	cntntsr := &contentSeekReader{atvrs: atvrs, atvRsAPC: atvRsAPC, IOSeekReader: NewIOSeekReader(atvrs), lastStartRsI: -1, lastEndRsI: -1}
 	return cntntsr
 }
 
-func newCodeSeekReader(atvrs *activeReadSeeker, cntntsr *contentSeekReader) *codeSeekReader {
-	cdesr := &codeSeekReader{atvrs: atvrs, IOSeekReader: NewIOSeekReader(atvrs), lastCntntStartI: -1, cntntsr: cntntsr}
+func newCodeSeekReader(atvrs *activeReadSeeker, atvRsAPC *activeRSActivePassiveContent, cntntsr *contentSeekReader) *codeSeekReader {
+	cdesr := &codeSeekReader{atvrs: atvrs, atvRsAPC: atvRsAPC, IOSeekReader: NewIOSeekReader(atvrs), lastCntntStartI: -1, cntntsr: cntntsr}
 	return cdesr
 }
 
 var emptyIO = &IORW{cached: false}
 
-func (atvparse *activeParser) WriteContentByPos(rsi int, pos int) {
-	if atvparse.atvrsmap != nil && atvparse.atvrscntntcdemap != nil {
+func (atvparse *activeParser) WriteContentByPos(rsi int, pos int, atvRsAPCi ...int) {
+	var atvRsAPC = atvparse.atvRsAPCStart
+
+	if atvRsAPC.cntntrs != nil && len(atvRsAPC.cntntrs.seekis) > 0 {
+		atvRsAPC.cntntrs.WriteSeekedPos(atvparse.atv.w, pos, 0)
+	}
+
+	/*if atvparse.atvrsmap != nil && atvparse.atvrscntntcdemap != nil {
 		if atvrs, atvrsok := atvparse.atvrscntntcdemap[rsi]; atvrsok && atvrs.cntntRS != nil && len(atvrs.cntntRS.seekis) > 0 {
 			atvrs.cntntRS.WriteSeekedPos(atvparse.atv.w, pos, 0)
 		}
-	}
+	}*/
 }
 
 func (atvparse *activeParser) readCurrentUnparsedTokenIO(token *activeParseToken, p []byte) (n int, err error) {
@@ -261,16 +332,16 @@ func (atvparse *activeParser) readPassive(token *activeParseToken) (tknrn int, t
 }
 
 type activeReadSeeker struct {
-	atvpros   *ActiveProcessor
-	atvparse  *activeParser
-	atvrsio   *IORW
-	cntntRS   *contentSeekReader
-	cdeRS     *codeSeekReader
+	atvpros  *ActiveProcessor
+	atvparse *activeParser
+	atvrsio  *IORW
+	//cntntRS   *contentSeekReader
+	//cdeRS     *codeSeekReader
 	atvrsi    int
 	atvrspath string
 }
 
-func (atvrs *activeReadSeeker) writeAllContent(w io.Writer) {
+/*func (atvrs *activeReadSeeker) writeAllContent(w io.Writer) {
 	if !atvrs.cntntRS.Empty() {
 		if len(atvrs.cntntRS.seekis) > 0 {
 			if atvrs.atvparse.atv.out == nil {
@@ -284,7 +355,7 @@ func (atvrs *activeReadSeeker) writeAllContent(w io.Writer) {
 			}
 		}
 	}
-}
+}*/
 
 func (atvrs *activeReadSeeker) cleanupactiveReadSeeker() {
 	if atvrs.atvparse != nil {
@@ -297,14 +368,14 @@ func (atvrs *activeReadSeeker) cleanupactiveReadSeeker() {
 		atvrs.atvrsio.Close()
 		atvrs.atvrsio = nil
 	}
-	if atvrs.cdeRS != nil {
+	/*if atvrs.cdeRS != nil {
 		atvrs.cdeRS.clearCodeSeekReader()
 		atvrs.cdeRS = nil
 	}
 	if atvrs.cntntRS != nil {
 		atvrs.cntntRS.clearContentSeekReader()
 		atvrs.cntntRS = nil
-	}
+	}*/
 }
 
 func (atvrs *activeReadSeeker) Seek(offset int64, whence int) (n int64, err error) {
@@ -328,11 +399,17 @@ func (atvparse *activeParser) parse(rs io.ReadSeeker, root string, path string, 
 
 	parseerr = parseNextToken(nil, atvparse, path)
 
-	if parseerr == nil && atvparse.atvtrsstart != nil {
-		atvparse.evalStartActiveEntryPoint(atvparse.atvtrsstart)
+	if parseerr == nil && atvparse.atvRsAPCStart != nil {
+		evalStartActiveRSEntryPoint(atvparse, atvparse.atvRsAPCStart, atvparse.atv.w)
 	} else {
 		fmt.Println(parseerr)
 	}
+
+	/*if parseerr == nil && atvparse.atvtrsstart != nil {
+		atvparse.evalStartActiveEntryPoint(atvparse.atvtrsstart)
+	} else {
+		fmt.Println(parseerr)
+	}*/
 	return
 }
 
@@ -364,7 +441,24 @@ func parseNextToken(token *activeParseToken, atvparse *activeParser, rspath stri
 	return
 }
 
-func (atvparse *activeParser) evalStartActiveEntryPoint(atvrsstart *activeReadSeeker) {
+func evalStartActiveRSEntryPoint(atvparse *activeParser, atvRSAPCStart *activeRSActivePassiveContent, w io.Writer) {
+	//atvRSAPCStart
+	if !atvRSAPCStart.cders.Empty() {
+		s := ""
+		s += atvRSAPCStart.cders.String()
+		atvparse.atv.evalCode(func() string {
+			return s
+		}, map[string]interface{}{"_out": atvparse.atv.Out(), "_atvparse": atvparse, "_parameters": atvparse.atv.params, "@db@execute": func(alias string, query string, args ...interface{}) *DBExecuted {
+			return DatabaseManager().Execute(alias, query, args...)
+		}, "@db@query": func(alias string, query string, args ...interface{}) *DBQuery {
+			return DatabaseManager().Query(alias, query, args...)
+		}})
+	} else {
+		atvRSAPCStart.writeAllContent(atvparse.atv.w)
+	}
+}
+
+/*func (atvparse *activeParser) evalStartActiveEntryPoint(atvrsstart *activeReadSeeker) {
 	if !atvrsstart.cdeRS.Empty() {
 		s := ""
 		s += atvrsstart.cdeRS.String()
@@ -378,7 +472,7 @@ func (atvparse *activeParser) evalStartActiveEntryPoint(atvrsstart *activeReadSe
 	} else {
 		atvrsstart.writeAllContent(atvparse.atv.w)
 	}
-}
+}*/
 
 func nextactiveParseToken(token *activeParseToken, parser *activeParser, rspath string) (nexttoken *activeParseToken) {
 	rspathext := filepath.Ext(rspath)
@@ -399,17 +493,32 @@ func nextactiveParseToken(token *activeParseToken, parser *activeParser, rspath 
 	if parser.atvTkns == nil {
 		parser.atvTkns = map[*activeParseToken]*activeParseToken{}
 	}
+	if parser.atvRsAPCMap == nil {
+		parser.atvRsAPCMap = map[*activeRSActivePassiveContent]*activeRSActivePassiveContent{}
+	}
 
 	nexttoken = &activeParseToken{startRIndex: 0, endRIndex: 0, parse: parser, tknrb: make([]byte, 1), curStartIndex: -1, curEndIndex: -1, rsroot: rsroot, rspath: rspath, atvRStartIndex: -1, atvREndIndex: -1, tokenMde: tokenActive}
-	nexttoken.atvlbls = []string{"<@", "@>"}
-	nexttoken.psvlbls = []string{nexttoken.atvlbls[0][0 : len(nexttoken.atvlbls)-1], nexttoken.atvlbls[1][1:]}
-	nexttoken.atvlblsi = []int{0, 0}
+	nexttoken.lbls = []string{"<@", "@>"}
+	nexttoken.lblsi = []int{0, 0}
 	nexttoken.parkedStartIndex = -1
 	nexttoken.parkedEndIndex = -1
 	nexttoken.parkedLevel = 0
 	parser.atvTkns[nexttoken] = token
+
 	//nexttoken.psvlblsi = []int{0, 0}
 	nexttoken.atvrs = parser.atvrs(rspath)
+	nexttoken.atvRsAPC = newActiveRSActivePassiveContent(nexttoken.atvrs, parser)
+
+	if parser.atvRsAPCStart == nil {
+		parser.atvRsAPCStart = nexttoken.atvRsAPC
+	}
+
+	if token == nil {
+		parser.atvRsAPCMap[nexttoken.atvRsAPC] = nil
+	} else {
+		parser.atvRsAPCMap[nexttoken.atvRsAPC] = token.atvRsAPC
+	}
+
 	return nexttoken
 }
 
@@ -422,11 +531,10 @@ const (
 
 type activeParseToken struct {
 	parse            *activeParser
-	atvlbls          []string
-	atvlblsi         []int
+	lbls             []string
+	lblsi            []int
 	atvprevb         byte
 	hasAtv           bool
-	psvlbls          []string
 	psvCapturedIO    *IORW
 	psvUnvalidatedIO *IORW
 	tknrb            []byte
@@ -452,6 +560,7 @@ type activeParseToken struct {
 	atvRStartIndex int64
 	atvREndIndex   int64
 	tokenMde       tokenMode
+	atvRsAPC       *activeRSActivePassiveContent
 }
 
 func (token *activeParseToken) prevToken() *activeParseToken {
@@ -461,45 +570,45 @@ func (token *activeParseToken) prevToken() *activeParseToken {
 	return nil
 }
 
-func (token *activeParseToken) appendCde(atvrs *activeReadSeeker, atvRStartIndex int64, atvREndIndex int64) {
-	atvrs.cdeRS.Append(atvRStartIndex, atvREndIndex)
+func (token *activeParseToken) appendCde(atvRSAPC *activeRSActivePassiveContent, atvRStartIndex int64, atvREndIndex int64) {
+	atvRSAPC.cders.Append(atvRStartIndex, atvREndIndex)
 }
 
-func (token *activeParseToken) appendCntnt(atvrs *activeReadSeeker, psvRStartIndex int64, psvREndIndex int64) {
-	atvrs.cntntRS.Append(psvRStartIndex, psvREndIndex)
+func (token *activeParseToken) appendCntnt(atvRSAPC *activeRSActivePassiveContent, psvRStartIndex int64, psvREndIndex int64) {
+	atvRSAPC.cntntrs.Append(psvRStartIndex, psvREndIndex)
 }
 
 func (token *activeParseToken) wrapupactiveParseToken() {
-	if token.atvrs != nil {
-		if !token.atvrs.cdeRS.Empty() {
-			if !token.atvrs.cdeRS.Empty() {
-				if token.atvrs.cdeRS.cntntseekriendpos == nil || len(token.atvrs.cdeRS.cntntseekriendpos) == 0 {
-					if token.atvrs.cntntRS.lastStartRsI > -1 && token.atvrs.cntntRS.lastStartRsI <= token.atvrs.cntntRS.lastEndRsI {
-						cntntrsseeki := make([]int, (token.atvrs.cntntRS.lastEndRsI-token.atvrs.cntntRS.lastStartRsI)+1)
+	if token.atvRsAPC != nil {
+		if !token.atvRsAPC.cders.Empty() {
+			if !token.atvRsAPC.cders.Empty() {
+				if token.atvRsAPC.cders.cntntseekriendpos == nil || len(token.atvRsAPC.cders.cntntseekriendpos) == 0 {
+					if token.atvRsAPC.cntntrs.lastStartRsI > -1 && token.atvRsAPC.cntntrs.lastStartRsI <= token.atvRsAPC.cntntrs.lastEndRsI {
+						cntntrsseeki := make([]int, (token.atvRsAPC.cntntrs.lastEndRsI-token.atvRsAPC.cntntrs.lastStartRsI)+1)
 						for cntntrsseekin := range cntntrsseeki {
-							cntntrsseeki[cntntrsseekin] = token.atvrs.cntntRS.lastStartRsI
-							token.atvrs.cntntRS.lastStartRsI++
+							cntntrsseeki[cntntrsseekin] = token.atvRsAPC.cntntrs.lastStartRsI
+							token.atvRsAPC.cntntrs.lastStartRsI++
 						}
-						token.atvrs.cntntRS.lastStartRsI = -1
-						token.atvrs.cntntRS.lastEndRsI = -1
-						token.atvrs.cdeRS.cntntseekriendpos = append(token.atvrs.cdeRS.cntntseekriendpos, cntntrsseeki[:]...)
+						token.atvRsAPC.cntntrs.lastStartRsI = -1
+						token.atvRsAPC.cntntrs.lastEndRsI = -1
+						token.atvRsAPC.cders.cntntseekriendpos = append(token.atvRsAPC.cders.cntntseekriendpos, cntntrsseeki[:]...)
 						cntntrsseeki = nil
 					}
 				}
 				token.parse.appendActiveRSPoint(token.atvrs, token.parse.atvTkns == nil || token.parse.atvTkns[token] == nil)
 			}
-		} else if !token.atvrs.cntntRS.Empty() {
+		} else if !token.atvRsAPC.cntntrs.Empty() {
 			token.parse.appendActiveRSPoint(token.atvrs, token.parse.atvTkns == nil || token.parse.atvTkns[token] == nil)
 		}
 	}
 }
 
 func (token *activeParseToken) cleanupactiveParseToken() (prevtoken *activeParseToken, err error) {
-	if token.atvlbls != nil {
-		token.atvlbls = nil
+	if token.lbls != nil {
+		token.lbls = nil
 	}
-	if token.atvlblsi != nil {
-		token.atvlblsi = nil
+	if token.lblsi != nil {
+		token.lblsi = nil
 	}
 	if token.parse != nil {
 		if token.parse.atvTkns != nil {
@@ -511,9 +620,6 @@ func (token *activeParseToken) cleanupactiveParseToken() (prevtoken *activeParse
 		token.parse = nil
 	}
 
-	if token.psvlbls != nil {
-		token.psvlbls = nil
-	}
 	if token.rerr != nil {
 		token.rerr = nil
 	}
@@ -556,7 +662,7 @@ func (token *activeParseToken) parsing() (parsed bool, err error) {
 
 func (token *activeParseToken) parsingActive() (parsed bool, err error) {
 	token.nr, token.rerr = token.parse.readActive(token)
-	return parseActiveToken(token, token.atvlbls, token.atvlblsi)
+	return parseActiveToken(token, token.lbls, token.lblsi)
 }
 
 func parseActiveToken(token *activeParseToken, lbls []string, lblsi []int) (nextparse bool, err error) {
@@ -599,9 +705,9 @@ func parseActiveToken(token *activeParseToken, lbls []string, lblsi []int) (next
 			token.atvprevb = token.tknrb[0]
 			token.passiveCapturedIO().Print(token.tknrb)
 
-			if token.psvCapturedIO != nil && !token.psvCapturedIO.Empty() && token.psvCapturedIO.HasSuffix([]byte(token.psvlbls[1])) {
-				if token.psvCapturedIO.HasPrefixSuffix([]byte(token.psvlbls[0]), []byte(token.psvlbls[1])) {
-					if valid, single, complexStart, complexEnd, elemName, elemPath, elemExt, valErr := validatePassiveCapturedIO(token); valid {
+			if token.psvCapturedIO != nil && !token.psvCapturedIO.Empty() && token.psvCapturedIO.HasSuffix([]byte(lbls[1][1:])) {
+				if token.psvCapturedIO.HasPrefixSuffix([]byte(lbls[0][0:len(lbls)-1]), []byte(lbls[1][1:])) {
+					if valid, single, complexStart, complexEnd, elemName, elemPath, elemExt, valErr := validatePassiveCapturedIO(token, lbls); valid {
 						if single || complexStart {
 							if token.curStartIndex > -1 {
 								if token.curEndIndex == -1 {
@@ -631,7 +737,6 @@ func parseActiveToken(token *activeParseToken, lbls []string, lblsi []int) (next
 				}
 				token.psvCapturedIO.Close()
 			}
-
 			return nextparse, err
 
 		} else if lblsi[0] == len(lbls[0]) && lblsi[1] < len(lbls[1]) {
@@ -639,7 +744,7 @@ func parseActiveToken(token *activeParseToken, lbls []string, lblsi []int) (next
 				lblsi[1]++
 				if lblsi[1] == len(lbls[1]) {
 					if token.atvRStartIndex > -1 && token.atvREndIndex > -1 {
-						token.appendCde(token.atvrs, token.atvRStartIndex, token.atvREndIndex)
+						token.appendCde(token.atvRsAPC, token.atvRStartIndex, token.atvREndIndex)
 					}
 
 					if token.atvRStartIndex > -1 {
@@ -697,10 +802,10 @@ func parseActiveToken(token *activeParseToken, lbls []string, lblsi []int) (next
 	return nextparse, err
 }
 
-func validatePassiveCapturedIO(token *activeParseToken) (valid bool, single bool, comlexStart bool, complexEnd bool, elemName string, elemPath string, elemExt string, err error) {
-	if actualSize := (token.psvCapturedIO.Size() - int64(len(token.psvlbls[0])+len(token.psvlbls[1]))); actualSize >= 1 {
+func validatePassiveCapturedIO(token *activeParseToken, lbls []string) (valid bool, single bool, comlexStart bool, complexEnd bool, elemName string, elemPath string, elemExt string, err error) {
+	if actualSize := (token.psvCapturedIO.Size() - int64(len(lbls[0:len(lbls[0])-1])+len(lbls[1][1:]))); actualSize >= 1 {
 		if valid = (actualSize == 1 && token.psvCapturedIO.String() == "/"); !valid {
-			token.psvCapturedIO.Seek(int64(len(token.psvlbls[0])), 0)
+			token.psvCapturedIO.Seek(int64(len(lbls[0:len(lbls[0])-1])), 0)
 
 			actualSizei := int64(0)
 
@@ -721,7 +826,8 @@ func validatePassiveCapturedIO(token *activeParseToken) (valid bool, single bool
 									complexEnd = true
 								}
 							} else {
-								err = fmt.Errorf("Invalid element - " + token.psvCapturedIO.String())
+								break
+								//err = fmt.Errorf("Invalid element - " + token.psvCapturedIO.String())
 							}
 						} else {
 							token.passiveUnvalidatedIO().WriteRune(r)
@@ -798,7 +904,7 @@ func parseCurrentPassiveTokenStartEnd(token *activeParseToken, curatvrs *activeR
 	token.curEndIndex = -1
 	lasttknrb = token.tknrb[:]
 	if curStartIndex > -1 && curEndIndex > -1 && curStartIndex <= curEndIndex {
-		token.appendCntnt(token.atvrs, curStartIndex, curEndIndex)
+		token.appendCntnt(token.atvRsAPC, curStartIndex, curEndIndex)
 	}
 
 	return lasttknrb, err
