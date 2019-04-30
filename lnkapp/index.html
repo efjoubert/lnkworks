@@ -7,11 +7,14 @@
     <title>Document</title>
     <script src="jquery.js|block-ui.js|webactions.js"></script>
     <script src="./index.js"></script>
-    <script></script>
+    <script>// <.:index.js/></script>
 </head>
 <body>
     <@ for(var i=0;i<10;i++){ _out.StartElem("h1"); _out.Print("hello\r\n"); _out.EndElem("h1"); }@>
     <br/>INDEX<br/>
     <@ for(var i=0;i<10;i++){ _out.StartElem("h1"); _out.Print("hello\r\n"); _out.EndElem("h1"); }@>
+    <script>// <.:index.js/></script>
+    <.:testcontent/>
+    <test:sub>TEST CONTENT</test:sub>
 </body>
 </html>bla
