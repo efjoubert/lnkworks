@@ -60,12 +60,13 @@ func (rt *Route) ServeContent(path string, w http.ResponseWriter, r *http.Reques
 		if active == nil {
 			http.ServeContent(w, r, path, time.Now(), rs)
 		} else {
-			active.Process(rs, rt.rootpath, path, func(root string, path string) (rsfound io.ReadSeeker, rsfounderr error) {
+			rserr = active.Process(rs, rt.rootpath, path, func(root string, path string) (rsfound io.ReadSeeker, rsfounderr error) {
 				rsfound, rsfounderr = retrieveRs(rt, root, path, retrievedRs)
 				return rsfound, rsfounderr
 			})
 		}
-	} else if rserr != nil {
+	}
+	if rserr != nil {
 		w.Write([]byte(rserr.Error()))
 	}
 	if retrievedRs != nil {
