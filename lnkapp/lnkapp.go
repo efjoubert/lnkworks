@@ -70,7 +70,7 @@ func main() {
 	test()
 
 	lnksworks.RegisterEmbededResources(
-		"section/index.html", strings.NewReader(`<html><head></head><section:sub/><body></body></html>`),
+		"section/index.html", strings.NewReader(`<html><head></head><:sub/><body></body></html>`),
 		"section/sub.html", strings.NewReader(`<span>section->sub</span>`),
 	)
 

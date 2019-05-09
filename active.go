@@ -12,7 +12,7 @@ import (
 	"github.com/efjoubert/lnkworks/widgeting"
 )
 
-//Execption interface
+//Exception interface
 type Exception interface{}
 
 type tcfblock struct {
@@ -1150,12 +1150,13 @@ func parseActiveToken(token *activeParseToken, lbls []string, lblsi []int) (next
 									token.parkedStartIndex = -1
 									token.parkedEndIndex = -1
 								} else {
-									if strings.HasPrefix(elemPath, "./") {
+									/*if strings.HasPrefix(elemPath, "./") {
 										elemPath = elemPath[2:]
 									} else if strings.HasPrefix(elemPath, "/") {
 										elemPath = elemPath[1:]
 									}
 									elemPath = token.rsroot + elemPath
+									*/
 									if err = token.parse.setRSByPath(elemPath); err == nil {
 										var atvrsapcsi = token.parkedStartIndex
 										var atvrsapcei = token.parkedEndIndex
@@ -1310,7 +1311,14 @@ func validatePassiveCapturedIO(token *activeParseToken, lbls []string) (valid bo
 									elemExt = token.rspathext
 								}
 							}
-							elemPath = strings.ReplaceAll(elemName, ":", "/") + elemExt
+							if strings.HasPrefix(elemName, ".:") {
+								elemPath = strings.ReplaceAll(elemName[2:], ":", "/") + elemExt
+							} else if strings.HasPrefix(elemName, ":") {
+								elemPath = strings.ReplaceAll(elemName[1:], ":", "/") + elemExt
+							} else {
+								elemPath = strings.ReplaceAll(elemName, ":", "/") + elemExt
+							}
+
 							if err = token.parse.setRSByPath(token.rsroot + elemPath); err == nil {
 								if token.parse.atvrs(token.rsroot+elemPath) == nil {
 									break
