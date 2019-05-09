@@ -607,9 +607,6 @@ func (atvparse *activeParser) WriteParkedContentByPos(prkdpi int, pos int, atvRs
 func readatvrs(token *activeParseToken, p []byte) (n int, err error) {
 	if token.atvRsAPC.prkdPoint != nil && token.atvRsAPC.prkdPoint.enabled {
 		n, err = token.atvRsAPC.prkdPoint.Read(p)
-		if n > 0 {
-			fmt.Print(string(p))
-		}
 		if err == io.EOF {
 			if token.atvRsAPC.prkdPoint.endRIndex > token.atvRsAPC.prkdPoint.prkdStartI {
 				token.atvRsAPC.prkdPoint.eofEndRIndex = token.atvRsAPC.prkdPoint.endRIndex - 1
@@ -1270,7 +1267,9 @@ func validatePassiveCapturedIO(token *activeParseToken, lbls []string) (valid bo
 
 			elemName = ""
 
-			for actualSizei < actualSize {
+			var validElemName = false
+
+			for actualSizei < actualSize && !validElemName {
 				if r, _, _ := token.psvCapturedIO.ReadRune(); r > 0 {
 					actualSizei += int64(len(string(r)))
 					if strings.TrimSpace(string(r)) != "" {
@@ -1318,13 +1317,12 @@ func validatePassiveCapturedIO(token *activeParseToken, lbls []string) (valid bo
 							}
 
 							if err = token.parse.setRSByPath(token.rsroot + elemPath); err == nil {
-								if token.parse.atvrs(token.rsroot+elemPath) == nil {
-									break
+								if token.parse.atvrs(token.rsroot+elemPath) != nil {
+									validElemName = true
 								}
-							} else {
-								break
 							}
-							valid = true
+							valid = validElemName
+							break
 						} else {
 							break
 						}
