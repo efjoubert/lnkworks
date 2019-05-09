@@ -7,19 +7,23 @@ import (
 	"time"
 )
 
+//DbResultSetMetaData DbResultSet meta data container
 type DbResultSetMetaData struct {
 	cols     []string
 	colTypes []*ColumnType
 }
 
+//Columns column name(s)
 func (rsetmeta *DbResultSetMetaData) Columns() []string {
 	return rsetmeta.cols
 }
 
+//ColumnTypes ColumnType(s) definition(s)
 func (rsetmeta *DbResultSetMetaData) ColumnTypes() []*ColumnType {
 	return rsetmeta.colTypes
 }
 
+//ColumnType structure defining column definition
 type ColumnType struct {
 	name string
 
@@ -35,10 +39,12 @@ type ColumnType struct {
 	scanType     reflect.Type
 }
 
+//Name ColumnType.Name()
 func (colType *ColumnType) Name() string {
 	return colType.name
 }
 
+//Numeric ColumnType is Numeric() bool
 func (colType *ColumnType) Numeric() bool {
 	if colType.hasPrecisionScale {
 		return true
@@ -46,42 +52,52 @@ func (colType *ColumnType) Numeric() bool {
 	return strings.Index(colType.databaseType, "CHAR") == -1 && strings.Index(colType.databaseType, "DATE") == -1 && strings.Index(colType.databaseType, "TIME") == -1
 }
 
+//HasNullable ColumnType content has NULL able content
 func (colType *ColumnType) HasNullable() bool {
 	return colType.hasNullable
 }
 
+//HasLength ColumnType content has Length definition
 func (colType *ColumnType) HasLength() bool {
 	return colType.hasLength
 }
 
+//HasPrecisionScale ColumnType content has PrecisionScale
 func (colType *ColumnType) HasPrecisionScale() bool {
 	return colType.hasPrecisionScale
 }
 
+//Nullable ColumnType content is Nullable
 func (colType *ColumnType) Nullable() bool {
 	return colType.nullable
 }
 
+//Length ColumnType content lenth must be used in conjunction with HasLength
 func (colType *ColumnType) Length() int64 {
 	return colType.length
 }
 
+//DatabaseType ColumnType underlying db type as defined by cnstring of DbConnection
 func (colType *ColumnType) DatabaseType() string {
 	return colType.databaseType
 }
 
+//Precision ColumnType numeric Precision. Used in conjunction with HasPrecisionScale
 func (colType *ColumnType) Precision() int64 {
 	return colType.precision
 }
 
+//Scale ColumnType Scale. Used in conjunction with HasPrecisionScale
 func (colType *ColumnType) Scale() int64 {
 	return colType.scale
 }
 
+//Type ColumnType reflect.Type as specified by golang sql/database
 func (colType *ColumnType) Type() reflect.Type {
 	return colType.scanType
 }
 
+//DbResultSet DbResultSet container
 type DbResultSet struct {
 	rsmetadata  *DbResultSetMetaData
 	stmnt       *DbStatement
@@ -93,10 +109,12 @@ type DbResultSet struct {
 	dosomething chan bool
 }
 
+//MetaData DbResultSet=>DbResultSetMetaData
 func (rset *DbResultSet) MetaData() *DbResultSetMetaData {
 	return rset.rsmetadata
 }
 
+//Data return Displayable data in the form of a slice, 'array', of interface{} values
 func (rset *DbResultSet) Data() []interface{} {
 	go func() {
 		for n := range rset.data {
@@ -128,6 +146,8 @@ func castSQLTypeValue(valToCast interface{}, colType *ColumnType) (castedVal int
 	return castedVal
 }
 
+//Next return true if able to move focus of DbResultSet to the next underlying record
+// or false if the end is reached
 func (rset *DbResultSet) Next() (next bool, err error) {
 	if next = rset.rset.Next(); next {
 		if rset.data == nil {
@@ -154,6 +174,8 @@ func (rset *DbResultSet) Next() (next bool, err error) {
 	return next, err
 }
 
+//Close the DbResultSet as well as the underlying DbStatement related to this DbResultSet
+//After this action the DbResultSet is 'empty' or cleaned up in a golang world
 func (rset *DbResultSet) Close() {
 	if rset.data != nil {
 		rset.data = nil

@@ -9,11 +9,6 @@ import (
 	"sync"
 )
 
-type IReader interface {
-	ReadAllToHandle(hndle func([]byte) (int, error)) (err error)
-	ReadAll(io.Writer) error
-}
-
 //IORW Reader Writer
 type IORW struct {
 	altRS     io.ReadSeeker
@@ -29,21 +24,28 @@ type IORW struct {
 	io.Writer
 	io.ReadSeeker
 	io.WriteSeeker
-	buffer [][]byte
-	bytes  []byte
-	bytesi int
-	fpath  string
-	finfo  os.FileInfo
-	cached bool
-	altW   io.Writer
-	cur    *ReadWriteCursor
+	maxWriteSize  int64
+	maxWriteIndex int64
+	buffer        [][]byte
+	bytes         []byte
+	bytesi        int
+	fpath         string
+	finfo         os.FileInfo
+	cached        bool
+	altW          io.Writer
+	cur           *ReadWriteCursor
 }
 
+//UnderlyingCursor internal, underlying, ReadWriteCursor of IORW for internal IO operations
 func (ioRW *IORW) UnderlyingCursor() *ReadWriteCursor {
 	return ioRW.cur
 }
 
+//HasSuffix indicate if the IORW internal content emd with the indicated []byte suffix
 func (ioRW *IORW) HasSuffix(suffix []byte) bool {
+	if ioRW.Empty() {
+		return false
+	}
 	if sufl := len(suffix); sufl > 0 {
 		if ioRW.Size() >= int64(sufl) {
 			if ioRW.altR == nil {
@@ -80,19 +82,43 @@ func (ioRW *IORW) HasSuffix(suffix []byte) bool {
 	return false
 }
 
+//HasPrefixExp indicate of the IORW underlying content start with the specified regexp
 func (ioRW *IORW) HasPrefixExp(regexp *regexp.Regexp) bool {
+	if ioRW.Empty() {
+		return false
+	}
 	if loc := regexp.FindReaderIndex(ioRW); loc != nil && loc[0] == 0 {
 		return true
 	}
 	return false
 }
 
-func (ioRW *IORW) MatchExp(regexp ...*regexp.Regexp) bool {
-	if len(regexp) == 0 {
+//MatchExp Indicate if the content match the one or more regexp(s)
+//If mor than one regexp, *regexp.Regexp, is passed it will test the regexp(s) in order
+func (ioRW *IORW) MatchExp(regexpa ...interface{}) bool {
+	if ioRW.Empty() {
+		return false
+	}
+	var rgexp = []*regexp.Regexp{}
+	var forceResart = false
+
+	for _, d := range regexpa {
+		if rexp, rexpok := d.(*regexp.Regexp); rexpok {
+			rgexp = append(rgexp, rexp)
+		} else if frc, frcok := d.(bool); frcok && !forceResart && frc {
+			forceResart = frc
+		}
+	}
+
+	if len(rgexp) == 0 {
 		return false
 	}
 
-	for _, regxp := range regexp {
+	if forceResart {
+		ioRW.Seek(0, 0)
+	}
+
+	for _, regxp := range rgexp {
 		if !regxp.MatchReader(ioRW) {
 			return false
 		}
@@ -100,7 +126,11 @@ func (ioRW *IORW) MatchExp(regexp ...*regexp.Regexp) bool {
 	return true
 }
 
+//HasPrefix indicate if the IORW internal content starts with the indicated []byte prefix
 func (ioRW *IORW) HasPrefix(prefix []byte) bool {
+	if ioRW.Empty() {
+		return false
+	}
 	if prefl := len(prefix); prefl > 0 {
 		if ioRW.Size() >= int64(prefl) {
 
@@ -110,16 +140,20 @@ func (ioRW *IORW) HasPrefix(prefix []byte) bool {
 				bufi := 0
 				bufl := len(ioRW.buffer)
 				bytei := 0
-
+				bytel := 0
 				for prefi < prefl && bufi < bufl {
-					for bytei < len(ioRW.buffer[bufi]) {
+					bytel = len(ioRW.buffer[bufi])
+					bytei = 0
+					for bytei < bytel && prefi < prefl {
 						if prefix[prefi] != ioRW.buffer[bufi][bytei] {
 							return false
 						}
 						bytei++
 						prefi++
+						if prefi == prefl {
+							return true
+						}
 					}
-					bytei = 0
 					bufi++
 				}
 
@@ -139,6 +173,9 @@ func (ioRW *IORW) HasPrefix(prefix []byte) bool {
 	return false
 }
 
+//HasPrefixSuffix indicate if the IORW internal content
+//starts with the indicated []byte prefix
+//and ends with the indicated []byte suffix
 func (ioRW *IORW) HasPrefixSuffix(prefix []byte, suffix []byte) bool {
 	if len(prefix) > 0 && len(suffix) > 0 {
 		return ioRW.Size() >= int64(len(prefix)+len(suffix)) && ioRW.HasPrefix(prefix) && ioRW.HasSuffix(suffix)
@@ -146,6 +183,7 @@ func (ioRW *IORW) HasPrefixSuffix(prefix []byte, suffix []byte) bool {
 	return false
 }
 
+//SeekIndex last seekedIndex
 func (ioRW *IORW) SeekIndex() int64 {
 	if ioRW.altR == nil {
 		if ioRW.cur == nil {
@@ -157,10 +195,12 @@ func (ioRW *IORW) SeekIndex() int64 {
 	return ioRW.altRIndex
 }
 
+//FileInfo return the os.FileInfo of the underlying file that the IO wraps arround
 func (ioRW *IORW) FileInfo() os.FileInfo {
 	return ioRW.finfo
 }
 
+//NewIORW invoke new instance of IORW
 func NewIORW(a ...interface{}) (ioRW *IORW, err error) {
 	ioRW = &IORW{cached: false}
 	if len(a) > 0 {
@@ -181,6 +221,8 @@ func NewIORW(a ...interface{}) (ioRW *IORW, err error) {
 				ioRW.altR = altR
 			} else if altW, altWok := d.(io.Writer); altWok {
 				ioRW.altW = altW
+			} else if flushMaxSize, flushMaxSizeOk := d.(int64); flushMaxSizeOk && flushMaxSize > 0 {
+				ioRW.maxWriteSize = flushMaxSize
 			}
 		}
 	}
@@ -281,6 +323,7 @@ func (ioRW *IORW) ReadAll(w io.Writer) (err error) {
 	return err
 }
 
+//ReaderToWriter conveniance method to write content from r io.Reader to w io.Writer using the indicated bufSize
 func ReaderToWriter(r io.Reader, w io.Writer, bufSize int) {
 	if bufSize == 0 {
 		bufSize = 4096
@@ -414,7 +457,7 @@ func (ioRW *IORW) WriteAll(r io.Reader, maxReadLen ...int64) (err error) {
 	for mReadLen == -1 || mReadLen > 0 {
 		if rn, rerr := readBytesFromReader(bts, r); rerr == nil || rerr == io.EOF {
 			if rn > 0 {
-				if mReadLen <= int64(rn) {
+				if mReadLen <= int64(rn) && mReadLen > 0 {
 					rn = int(mReadLen)
 				}
 				if wn, werr := writeBytesToWriter(bts[0:rn], ioRW); werr != nil {
@@ -470,7 +513,7 @@ func (ioRW *IORW) WriteRune(r rune) (int, error) {
 func (ioRW *IORW) Write(p []byte) (n int, err error) {
 	if pl := len(p); pl > 0 {
 		for n < pl {
-			if ioRW.altW == nil {
+			if ioRW.altW == nil && ioRW.maxWriteSize == 0 {
 				if len(ioRW.bytes) == 0 {
 					ioRW.bytes = make([]byte, 4096)
 					ioRW.bytesi = 0
@@ -521,6 +564,15 @@ func (ioRW *IORW) Write(p []byte) (n int, err error) {
 			}
 		}
 	}
+	if n > 0 && ioRW.maxWriteSize > 0 {
+		if ioRW.maxWriteIndex += int64(n); ioRW.maxWriteIndex >= ioRW.maxWriteSize {
+			if ioRW.altW != nil {
+				ioRW.ReadAll(ioRW.altW)
+				ioRW.ClearBuffer()
+			}
+			ioRW.maxWriteIndex = 0
+		}
+	}
 	return n, err
 }
 
@@ -538,8 +590,8 @@ func (ioRW *IORW) String() (s string) {
 	return s
 }
 
-//Close or cleanup IORW
-func (ioRW *IORW) Close() (err error) {
+//ClearBuffer clear internal memory buffer of IORW and cleanup internal ReadWriteCursor
+func (ioRW *IORW) ClearBuffer() {
 	if ioRW.buffer != nil {
 		for len(ioRW.buffer) > 0 {
 			ioRW.buffer[0] = nil
@@ -557,12 +609,17 @@ func (ioRW *IORW) Close() (err error) {
 	if ioRW.bytesi > 0 {
 		ioRW.bytesi = 0
 	}
-	if ioRW.altW != nil {
-		ioRW.altW = nil
-	}
 	if ioRW.cur != nil {
 		ioRW.cur.Close()
 		ioRW.cur = nil
+	}
+}
+
+//Close or cleanup IORW
+func (ioRW *IORW) Close() (err error) {
+	ioRW.ClearBuffer()
+	if ioRW.altW != nil {
+		ioRW.altW = nil
 	}
 	return err
 }
@@ -832,6 +889,7 @@ type ReadWriteCursor struct {
 	bufRuneReader          *bufio.Reader
 }
 
+//SeekIndex last seekindex of ReadWriteCursor
 func (ioRWCur *ReadWriteCursor) SeekIndex() int64 {
 	return ioRWCur.seekoffindex
 }
@@ -1004,15 +1062,18 @@ func (ioRWCur *ReadWriteCursor) Close() (err error) {
 	return err
 }
 
+//SeekOutput interface
 type SeekOutput interface {
 	Append(int64, int64)
 }
 
+//Seeker base struct implementation of SeekOutput
 type Seeker struct {
 	seekis    [][]int64
 	seekindex int
 }
 
+//Append Seeker appends starti, endi
 func (sker *Seeker) Append(starti int64, endi int64) {
 	if sker.seekis == nil {
 		sker.seekis = [][]int64{}
@@ -1020,6 +1081,12 @@ func (sker *Seeker) Append(starti int64, endi int64) {
 	sker.seekis = append(sker.seekis, []int64{starti, endi})
 }
 
+//Empty Seeker
+func (sker *Seeker) Empty() bool {
+	return sker.seekis == nil || len(sker.seekis) == 0
+}
+
+//ClearSeeker clear seeker starti,endi points
 func (sker *Seeker) ClearSeeker() {
 	if sker.seekis != nil {
 		for len(sker.seekis) > 0 {
@@ -1034,16 +1101,19 @@ func (sker *Seeker) ClearSeeker() {
 	}
 }
 
+//IOSeekReader extends Seeker and wraps arround a io.ReaderSeeker
 type IOSeekReader struct {
 	*Seeker
 	ioRS io.ReadSeeker
 	rbuf []byte
 }
 
+//NewIOSeekReader invoke instance of *IOSeekReader that wrap arround an ioRS io.ReadSeeker
 func NewIOSeekReader(ioRS io.ReadSeeker) *IOSeekReader {
 	return &IOSeekReader{Seeker: &Seeker{}, ioRS: ioRS}
 }
 
+//ClearIOSeekReader clear IOSeekReader
 func (iosr *IOSeekReader) ClearIOSeekReader() {
 	if iosr.ioRS != nil {
 		iosr.ioRS = nil
@@ -1063,17 +1133,20 @@ func (iosr *IOSeekReader) Size() int {
 	return len(iosr.seekis)
 }
 
+//IOSeekReaderOutput IOSeekReader output interface
 type IOSeekReaderOutput interface {
 	SeekOutput
 	WriteSeekedPos(io.Writer, int, int) error
 }
 
+//IOSeekReaderInput IOSeekReader input interface
 type IOSeekReaderInput interface {
 	ReadSeekedIndex(int, int, []byte) int64
 	ReadSeekedPos(int, []byte) (int, error)
 }
 
-func (iosr *IOSeekReader) StringSeedPos(pos int, bufsize int) (s string, err error) {
+//StringSeekPos return s string value of pos, index, of point[starti,endi]
+func (iosr *IOSeekReader) StringSeekPos(pos int, bufsize int) (s string, err error) {
 	if pos >= 0 && pos < len(iosr.seekis) {
 		starti := iosr.seekis[pos][0]
 		endi := iosr.seekis[pos][1]
@@ -1121,6 +1194,7 @@ func (iosr *IOSeekReader) StringSeedPos(pos int, bufsize int) (s string, err err
 	return s, err
 }
 
+//WriteSeekedPos write content of pos, index, of point[starti,endi] into w io.Writer
 func (iosr *IOSeekReader) WriteSeekedPos(w io.Writer, pos int, bufsize int) (err error) {
 	if pos >= 0 && pos < len(iosr.seekis) {
 		starti := iosr.seekis[pos][0]

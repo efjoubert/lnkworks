@@ -6,18 +6,12 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>Document</title>
     <script src="jquery.js|block-ui.js"></script>
-    <script><!-- 
-        <.:webactions.js/> 
-        --></script>
+    <script>//</script>
     
 </head>
 <body>
-    <test:sub></test:sub>
-    <@ for(var i=0;i<10;i++){ _out.StartElem("h1"); _out.Print("hello\r\n"); _out.EndElem("h1"); } @>
-    <br/>INDEX<br/>
-    <@ for(var i=0;i<10;i++){ _out.StartElem("h1"); _out.Print("hello\r\n"); _out.EndElem("h1"); } @>
-    <@ for(var a=0;a<200;a++){ @><test:sub></test:sub><@ } @>
-    <br>
-    <@ for(var b=0;b<30;b++){ @><test:testcontent></test:testcontent><@ } @>
+    <@for(var d=0;d<100;d++){@><:testcontent>TEST <test:sub><@_out.Print("SUBSUB");@></test:sub><@_out.Print("CONTENT");@> FROM INDEX</:testcontent>space<@}@>
+    <test:sub/>
+    
 </body>
 </html>bla

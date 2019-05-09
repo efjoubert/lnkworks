@@ -5,11 +5,13 @@ import (
 	"fmt"
 )
 
+//DbStatement container representing the underlying DbConnection and allocated sql.Tx transaction
 type DbStatement struct {
 	cn *DbConnection
 	tx *sql.Tx
 }
 
+//NewDbStatement invoke a new DbStatement from the DbConnection
 func NewDbStatement(cn *DbConnection) (stmnt *DbStatement, err error) {
 	if err = cn.db.Ping(); err == nil {
 		stmnt = &DbStatement{cn: cn}
@@ -17,6 +19,7 @@ func NewDbStatement(cn *DbConnection) (stmnt *DbStatement, err error) {
 	return stmnt, err
 }
 
+//Begin Invoke a transaction, sql.Tx, from the for ths DbStatement
 func (stmnt *DbStatement) Begin() (err error) {
 	if tx, txerr := stmnt.cn.db.Begin(); txerr == nil {
 		stmnt.tx = tx
@@ -26,13 +29,17 @@ func (stmnt *DbStatement) Begin() (err error) {
 	return err
 }
 
-func (stmnt *DbStatement) Execute(query string, args ...interface{}) (lastInsertId int64, rowsAffected int64, err error) {
+//Execute execute a none DbResultSet query
+//Usually used for statement like update and insert, or executing db procedures that dont return a record
+//In the case of Insert or Update if the underlying db driver
+//return the lastInsertID and rowsAffected if supported
+func (stmnt *DbStatement) Execute(query string, args ...interface{}) (lastInsertID int64, rowsAffected int64, err error) {
 	if stmnt.tx == nil {
 		err = stmnt.Begin()
 	}
 	if err == nil {
 		if r, rerr := stmnt.tx.Exec(query, args...); rerr == nil {
-			lastInsertId, err = r.LastInsertId()
+			lastInsertID, err = r.LastInsertId()
 			rowsAffected, err = r.RowsAffected()
 			r = nil
 			err = stmnt.tx.Commit()
@@ -43,9 +50,10 @@ func (stmnt *DbStatement) Execute(query string, args ...interface{}) (lastInsert
 	if err != nil {
 		err = stmnt.tx.Rollback()
 	}
-	return lastInsertId, rowsAffected, err
+	return lastInsertID, rowsAffected, err
 }
 
+//Query and return a DbResultSet
 func (stmnt *DbStatement) Query(query string, args ...interface{}) (rset *DbResultSet, err error) {
 	if stmnt.tx == nil {
 		err = stmnt.Begin()
@@ -72,6 +80,8 @@ func (stmnt *DbStatement) Query(query string, args ...interface{}) (rset *DbResu
 	return rset, err
 }
 
+//Close the allocated transaction, sql.Tx associated to this DbStatement
+//It will by default perform a commit before releasing the transaction reference
 func (stmnt *DbStatement) Close() {
 	if stmnt.tx != nil {
 		stmnt.tx.Commit()

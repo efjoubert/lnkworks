@@ -5,6 +5,7 @@ import (
 	"sync"
 )
 
+//EmbededResource struct representing embeded resource
 type EmbededResource struct {
 	contentRS *IORW
 }
@@ -19,6 +20,8 @@ func init() {
 	}
 }
 
+//EmbededResourceByPath return EmbededResource by path
+//note return resio *IORW
 func EmbededResourceByPath(respath string) (resio *IORW) {
 	embededResLock.RLock()
 	defer embededResLock.RUnlock()
@@ -30,6 +33,9 @@ func EmbededResourceByPath(respath string) (resio *IORW) {
 	return resio
 }
 
+//RegisterEmbededResources RegisterEmbededResources
+//Usage
+// RegisterEmbededResources(string,io.Reader,string,io.Reader)
 func RegisterEmbededResources(resources ...interface{}) {
 	if len(resources) > 0 && len(resources)%2 == 0 {
 		resi := 0

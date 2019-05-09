@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+//Server conveniance struct wrapping arround *http.Server
 type Server struct {
 	port       string
 	svr        *http.Server
@@ -15,12 +16,15 @@ type Server struct {
 	serveQueue chan func()
 }
 
+//NewServer return *Server
+//istls is tls listener
+//certfile string - path to certificate file
+//keyFile string - path to key file
 func NewServer(port string, istls bool, certFile string, keyFile string) *Server {
 	if !strings.HasPrefix(port, ":") {
 		port = ":" + port
 	}
-	var svr *Server = &Server{port: port, istls: istls, certFile: certFile, keyFile: keyFile, serveQueue: make(chan func())}
-
+	var svr = &Server{port: port, istls: istls, certFile: certFile, keyFile: keyFile, serveQueue: make(chan func())}
 	return svr
 }
 
@@ -33,6 +37,7 @@ func (svr *Server) processServes() {
 	}
 }
 
+//Listen start listening for connection(s)
 func (svr *Server) Listen() (err error) {
 	svr.svr = &http.Server{Addr: svr.port, Handler: svr, ReadHeaderTimeout: 3 * 1024 * time.Millisecond, ReadTimeout: 3 * 1024 * time.Millisecond, WriteTimeout: 1024 * time.Millisecond}
 	if svr.istls {
@@ -46,6 +51,7 @@ func (svr *Server) Listen() (err error) {
 	return err
 }
 
+//ServeHTTP server http.Handler interface implementation of ServeHTTP
 func (svr *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	done := make(chan bool, 1)
 	defer close(done)

@@ -7,6 +7,23 @@ import (
 	"github.com/kardianos/service"
 )
 
+//Service struct
+type Service struct {
+	isService   bool
+	isConsole   bool
+	start       func(*Service, ...string)
+	run         func(*Service, ...string)
+	stop        func(*Service, ...string)
+	execname    string
+	execfolder  string
+	name        string
+	displayName string
+	description string
+	svcConfig   *service.Config
+	args        []string
+}
+
+//Start Service
 func (svr *Service) Start(s service.Service) error {
 	if svr.start != nil {
 		if svr.isService {
@@ -32,6 +49,7 @@ func (svr *Service) exec() {
 	}
 }
 
+//Stop Service
 func (svr *Service) Stop(s service.Service) error {
 	if svr.stop != nil {
 		if svr.isService || svr.isConsole {
@@ -41,49 +59,48 @@ func (svr *Service) Stop(s service.Service) error {
 	return nil
 }
 
-type Service struct {
-	isService   bool
-	isConsole   bool
-	start       func(*Service, ...string)
-	run         func(*Service, ...string)
-	stop        func(*Service, ...string)
-	execname    string
-	execfolder  string
-	name        string
-	displayName string
-	description string
-	svcConfig   *service.Config
-	args        []string
-}
-
+//IsConsole Service
 func (svr *Service) IsConsole() bool {
 	return svr.isConsole
 }
 
+//IsService Service
 func (svr *Service) IsService() bool {
 	return svr.isService
 }
 
+//ServiceExeName Service Executable Name
 func (svr *Service) ServiceExeName() string {
 	return svr.execname
 }
 
+//ServiceName Service Name
 func (svr *Service) ServiceName() string {
 	return svr.name
 }
 
+//ServiceExeFolder local folder where Service Executable resides
 func (svr *Service) ServiceExeFolder() string {
 	return svr.execfolder
 }
 
+//ServiceDisplayName Service Display Name
 func (svr *Service) ServiceDisplayName() string {
 	return svr.displayName
 }
 
+//ServiceDescription Service Description
 func (svr *Service) ServiceDescription() string {
 	return svr.description
 }
 
+//NewService invoke new *Service
+//name - ServiceName
+//displayName - ServiceDisplayName
+//description - ServiceDescription
+//start - func(*Service, ...string) implementation, gets invoked when Service Start
+//run - func(*Service, ...string) implementation, gets invoked when Service Run
+//stop - func(*Service, ...string) implementation, gets invoked when Service Stop
 func NewService(name string, displayName string, description string, start func(*Service, ...string),
 	run func(*Service, ...string),
 	stop func(*Service, ...string)) (svr *Service, err error) {
@@ -124,6 +141,9 @@ func NewService(name string, displayName string, description string, start func(
 
 var logger service.Logger
 
+//Execute main Service Execute method when executing Service
+//called in main() func of golang app,
+//args - args from os gets passed into here
 func (svr *Service) Execute(args []string) (err error) {
 	svcargs := []string{}
 	canappendargs := false

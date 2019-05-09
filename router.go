@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+//Route struct of Route
 type Route struct {
 	rootpath string
 
@@ -31,6 +32,7 @@ func retrieveRs(rt *Route, root string, path string, retrievedRs map[string]io.R
 	}
 	if rsfound, rsfoundok := retrievedRs[path]; rsfoundok {
 		if rsf, rsfok := rsfound.(*os.File); rsfok {
+
 			_, rsfseekerr := rsf.Seek(0, 0)
 			return rsf, rsfseekerr
 		} else if rsemcur, rsemcurok := rsfound.(*ReadWriteCursor); rsemcurok {
@@ -54,16 +56,22 @@ func retrieveRs(rt *Route, root string, path string, retrievedRs map[string]io.R
 	return nil, nil
 }
 
+//ServeContent that invoke mapped hndlefunc -> func(svr *Server, rt *Route, root string, path string, mimetype string, w http.ResponseWriter, r *http.Request, active *ActiveProcessor)
 func (rt *Route) ServeContent(path string, w http.ResponseWriter, r *http.Request, active *ActiveProcessor, retrievedRs map[string]io.ReadSeeker) {
 	rs, rserr := retrieveRs(rt, "", path, retrievedRs)
 	if rs != nil && rserr == nil {
 		if active == nil {
 			http.ServeContent(w, r, path, time.Now(), rs)
 		} else {
+			var altlbls []string
+			if strings.HasSuffix(path, "babel.js") || strings.HasSuffix(path, "pdf.js") {
+				altlbls = []string{"[@", "@]"}
+			}
 			rserr = active.Process(rs, rt.rootpath, path, func(root string, path string) (rsfound io.ReadSeeker, rsfounderr error) {
 				rsfound, rsfounderr = retrieveRs(rt, root, path, retrievedRs)
+
 				return rsfound, rsfounderr
-			})
+			}, altlbls...)
 		}
 	}
 	if rserr != nil {
@@ -86,11 +94,16 @@ func (rt *Route) ServeContent(path string, w http.ResponseWriter, r *http.Reques
 	}
 }
 
+//Router struct mapping Route(s)
 type Router struct {
 	mappedRoutes map[string]*Route
 	rlock        *sync.RWMutex
 }
 
+//RegisterRoute register logical pathed route
+//path - logic path
+//rootpath - physical path to e.g drive location
+//hndlefunc overloaded func(svr *Server, rt *Route, root string, path string, mimetype string, w http.ResponseWriter, r *http.Request, active *ActiveProcessor)
 func RegisterRoute(path string, rootpath string, hndlefunc ...func(svr *Server, rt *Route, root string, path string, mimetype string, w http.ResponseWriter, r *http.Request, active *ActiveProcessor)) {
 	if !strings.HasSuffix(rootpath, "/") {
 		if rootpath == "" {
@@ -106,7 +119,7 @@ func RegisterRoute(path string, rootpath string, hndlefunc ...func(svr *Server, 
 			routes.mappedRoutes[path] = &Route{rootpath: rootpath, hndlefunc: hndlefunc[0]}
 		} else if len(hndlefunc) == 0 {
 			routes.mappedRoutes[path] = &Route{rootpath: rootpath, hndlefunc: func(svr *Server, rt *Route, root string, path string, mimetype string, w http.ResponseWriter, r *http.Request, active *ActiveProcessor) {
-				var retrievedRs map[string]io.ReadSeeker = make(map[string]io.ReadSeeker)
+				var retrievedRs = make(map[string]io.ReadSeeker)
 				rt.ServeContent(path, w, r, active, retrievedRs)
 				if retrievedRs != nil {
 					if len(retrievedRs) > 0 {
@@ -128,7 +141,7 @@ func RegisterRoute(path string, rootpath string, hndlefunc ...func(svr *Server, 
 	}
 }
 
-func loadParametersFromHttpRequest(params *Parameters, r *http.Request) {
+func loadParametersFromHTTPRequest(params *Parameters, r *http.Request) {
 	if err := r.ParseMultipartForm(0); err == nil {
 		if r.MultipartForm != nil {
 			for pname, pvalue := range r.MultipartForm.Value {
@@ -165,7 +178,7 @@ func (rtr *Router) serve(svr *Server, w http.ResponseWriter, r *http.Request) {
 
 	rtr.rlock.RLock()
 
-	var routePaths []string = []string{}
+	var routePaths = []string{}
 
 	params := NewParameters()
 	params.SetParameter("next-request", false, r.URL.Path)
@@ -179,9 +192,9 @@ func (rtr *Router) serve(svr *Server, w http.ResponseWriter, r *http.Request) {
 
 	setContentType := false
 
-	loadParametersFromHttpRequest(params, r)
+	loadParametersFromHTTPRequest(params, r)
 
-	var serveRouting func(string) error = func(pathToSplit string) (err error) {
+	var serveRouting = func(pathToSplit string) (err error) {
 		rtr.rlock.RLock()
 		pathsplit := strings.Split(pathToSplit, "/")
 		testPath := ""
@@ -273,4 +286,4 @@ func (rtr *Router) serve(svr *Server, w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-var routes *Router = &Router{mappedRoutes: map[string]*Route{}, rlock: &sync.RWMutex{}}
+var routes = &Router{mappedRoutes: map[string]*Route{}, rlock: &sync.RWMutex{}}
