@@ -288,8 +288,6 @@ func (atvRsAPC *activeRSActivePassiveContent) appendLevels(atvparser *activePars
 }
 
 func atvRSAPCCoding(hasCode bool, atvRsAPC *activeRSActivePassiveContent, atvparser *activeParser, w io.Writer) (err error) {
-	fmt.Println(atvRsAPC.tokenPath)
-
 	var atvrAPCiCode = ""
 	var cntntrs = atvRsAPC.cntntrs
 	var cntntpos = 0
