@@ -1,3 +1,3 @@
 /**
- * <@ _out.Print("TEST COMMENT"); @>
+ * <@ $out.Print("TEST COMMENT"); @>
  */

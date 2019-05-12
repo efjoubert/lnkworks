@@ -7,11 +7,10 @@
     <title>Document</title>
     <script src="jquery.js|block-ui.js"></script>
     <script>//<:index.js/></script>
-    <!-- <@_out.Print(_parameters.Parameter("test-param"));@> -->
+    <!-- <@$out.Print($parameters.Parameter("test-param"));@> -->
 </head>
 <body>
-    <@for(var d=0;d<100;d++){@><:testcontent>TEST <test:sub><@_out.Print("SUBSUB");@></test:sub><@_out.Print("CONTENT");@> FROM INDEX</:testcontent>space<@}@>
-    <test:sub/>
-    
+        <test:sub id=@ = "FROMCODE" ; @>ID=<@ $out.Print($elemprops().Parameter("id"));@></test:sub>
+    <@for(var d=0;d<100;d++){@><:testcontent>TEST <test:sub><@$out.Print("SUBSUB");@></test:sub><@$out.Print("CONTENT");@> FROM INDEX</:testcontent>space<@}@>    
 </body>
 </html>bla
