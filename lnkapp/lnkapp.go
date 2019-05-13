@@ -9,7 +9,6 @@ import (
 	widgeting "../../lnkworks/widgeting"
 	lnksworks "github.com/efjoubert/lnkworks"
 	activeruling "github.com/efjoubert/lnkworks/activeruling"
-	activerulinggui "github.com/efjoubert/lnkworks/activeruling/gui"
 )
 
 func main() {
@@ -28,8 +27,6 @@ func main() {
 		}()
 		i++
 	}
-
-	activerulinggui.ActiveRulingUI("ruling", "index.html")
 
 	lnksworks.RegisterEmbededResources(
 		"require.js", embed.RequireJS(),
