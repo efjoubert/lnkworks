@@ -9,8 +9,7 @@ import (
 	"strings"
 
 	"github.com/dop251/goja"
-	// "github.com/efjoubert/lnkworks/widgeting"
-	"./widgeting"
+	"github.com/efjoubert/lnkworks/widgeting"
 )
 
 //Exception interface
