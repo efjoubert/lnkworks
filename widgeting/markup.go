@@ -5,15 +5,19 @@ import (
 	"strings"
 )
 
+//PrintCommand definition
 type PrintCommand func(...interface{})
 
+//PrintLnCommand definition
 type PrintLnCommand func(...interface{})
 
+//OutPrint out print struct
 type OutPrint struct {
 	printCmd   PrintCommand
 	printLnCmd PrintLnCommand
 }
 
+//Print method
 func (out *OutPrint) Print(a ...interface{}) {
 	if out.printCmd != nil {
 		var fa []interface{}
@@ -46,6 +50,7 @@ func (out *OutPrint) Print(a ...interface{}) {
 	}
 }
 
+//ReplaceContent replace dynamic content
 func (out *OutPrint) ReplaceContent(contentref string, cntnta ...interface{}) {
 	out.StartReplaceContent(contentref)
 	if len(cntnta) > 0 {
@@ -60,22 +65,27 @@ func (out *OutPrint) ReplaceContent(contentref string, cntnta ...interface{}) {
 	out.EndReplaceContent()
 }
 
+//StartReplaceContent indicate start of dynamic content to replace
 func (out *OutPrint) StartReplaceContent(contentref string) {
 	out.Print("replace-content||" + contentref + "||")
 }
 
+//EndReplaceContent indicate end of dynamic content to replace
 func (out *OutPrint) EndReplaceContent() {
 	out.Print("||replace-content")
 }
 
+//StartScriptContent start active script content
 func (out *OutPrint) StartScriptContent() {
 	out.Print("script||")
 }
 
+//EndScriptContent end active script content
 func (out *OutPrint) EndScriptContent() {
 	out.Print("||script")
 }
 
+//ScriptContent active script content
 func (out *OutPrint) ScriptContent(contentref string, cntnta ...interface{}) {
 	out.StartScriptContent()
 	if len(cntnta) > 0 {
@@ -90,11 +100,13 @@ func (out *OutPrint) ScriptContent(contentref string, cntnta ...interface{}) {
 	out.EndScriptContent()
 }
 
+//NewOutPrint invoke new OutPut instance
 func NewOutPrint(printCmd PrintCommand, printLnCmd PrintLnCommand) (outPrint *OutPrint) {
 	outPrint = &OutPrint{printCmd: printCmd, printLnCmd: printLnCmd}
 	return outPrint
 }
 
+//Println method
 func (out *OutPrint) Println(a ...interface{}) {
 	if out.printLnCmd != nil {
 		if out.printCmd != nil {
@@ -106,26 +118,31 @@ func (out *OutPrint) Println(a ...interface{}) {
 	}
 }
 
+//SingleElem function
 func SingleElem(out *OutPrint, tag string, props ...string) {
 	out.Print("<", tag)
 	ElemProperties(out, props...)
 	out.Print("/>")
 }
 
-func (out *OutPrint) SingleElem(tag string, props ...string) {
+//SingleELEM element
+func (out *OutPrint) SingleELEM(tag string, props ...string) {
 	SingleElem(out, tag, props...)
 }
 
+//StartElem function
 func StartElem(out *OutPrint, tag string, props ...string) {
 	out.Print("<", tag)
 	ElemProperties(out, props...)
 	out.Print(">")
 }
 
-func (out *OutPrint) StartElem(tag string, props ...string) {
+//StartELEM element
+func (out *OutPrint) StartELEM(tag string, props ...string) {
 	StartElem(out, tag, props...)
 }
 
+//ElemProperties function
 func ElemProperties(out *OutPrint, props ...string) {
 	if out != nil && (out.printCmd != nil) && len(props) > 0 {
 		for _, p := range props {
@@ -136,25 +153,32 @@ func ElemProperties(out *OutPrint, props ...string) {
 	}
 }
 
+//ElemProperties element properties
 func (out *OutPrint) ElemProperties(props ...string) {
 	ElemProperties(out, props...)
 }
 
+//EndElem function
 func EndElem(out *OutPrint, tag string) {
 	out.Print("</", tag, ">")
 }
 
-func (out *OutPrint) EndElem(tag string) {
+//EndELEM element
+func (out *OutPrint) EndELEM(tag string) {
 	EndElem(out, tag)
 }
 
-type MarkupFunction func(*OutPrint, ...interface{})
+//MarkupFunction definition
+type MarkupFunction = func(*OutPrint)
 
-func stripPropsAndFunctions(a ...interface{}) (props []string, funcs []MarkupFunction) {
-	var unmatched []interface{}
+func stripPropsAndFunctions(a ...interface{}) (props []string, funcs []MarkupFunction, startMarkupElemFunc StartMarkupElementFunction, endMarkupElemFunc EndMarkupElementFunction) {
 	if len(a) > 0 {
 		for _, d := range a {
-			if p, pok := d.(string); pok {
+			if strtElemFunc, startElemFuncOk := d.(StartMarkupElementFunction); startElemFuncOk && startMarkupElemFunc == nil {
+				startMarkupElemFunc = strtElemFunc
+			} else if endElemFunc, endElemFuncOk := d.(EndMarkupElementFunction); endElemFuncOk && endMarkupElemFunc == nil {
+				endMarkupElemFunc = endElemFunc
+			} else if p, pok := d.(string); pok {
 				if props == nil {
 					props = []string{}
 				}
@@ -164,56 +188,50 @@ func stripPropsAndFunctions(a ...interface{}) (props []string, funcs []MarkupFun
 					funcs = []MarkupFunction{}
 				}
 				funcs = append(funcs, f)
-			} else if prepcntnt, prepcntntok := d.(PrepContent); prepcntntok {
-				if funcs == nil {
-					funcs = []MarkupFunction{}
-				}
-				funcs = append(funcs, func(out *OutPrint, a ...interface{}) {
-					if unmatched == nil || len(unmatched) == 0 {
-						prepcntnt(out)
-					} else {
-						prepcntnt(out, unmatched)
-						unmatched = nil
-					}
-				})
-			} else if funccntnt, funccntntok := d.(func(*OutPrint, ...interface{})); funccntntok {
-				if funcs == nil {
-					funcs = []MarkupFunction{}
-				}
-				funcs = append(funcs, funccntnt)
 			} else if r, rok := d.(io.Reader); rok {
 				if funcs == nil {
 					funcs = []MarkupFunction{}
 				}
 				if rs, rsok := r.(io.ReadSeeker); rsok {
-					funcs = append(funcs, func(out *OutPrint, a ...interface{}) {
+					funcs = append(funcs, func(out *OutPrint) {
 						rs.Seek(0, 0)
 					})
 				}
-				funcs = append(funcs, func(out *OutPrint, a ...interface{}) {
+				funcs = append(funcs, func(out *OutPrint) {
 					out.Print(r)
 				})
 			}
 		}
 	}
 
-	return props, funcs
+	return props, funcs, startMarkupElemFunc, endMarkupElemFunc
 }
 
-type PrepContent func(*OutPrint, ...interface{})
+//StartMarkupElementFunction definition
+type StartMarkupElementFunction = func(out *OutPrint, tag string, props ...string)
+
+//EndMarkupElementFunction definition
+type EndMarkupElementFunction = func(out *OutPrint, tag string)
 
 func Elem(out *OutPrint, tag string, a ...interface{}) {
-	props, funcs := stripPropsAndFunctions(a...)
-	StartElem(out, tag, props...)
+	props, funcs, strtElemFunc, endElemFunc := stripPropsAndFunctions(a...)
+	if strtElemFunc == nil {
+		strtElemFunc = StartElem
+	}
+	if endElemFunc == nil {
+		endElemFunc = EndElem
+	}
+	strtElemFunc(out, tag, props...)
 	if len(funcs) > 0 {
 		for _, f := range funcs {
 			f(out)
 		}
 	}
 
-	EndElem(out, tag)
+	endElemFunc(out, tag)
 }
 
-func (out *OutPrint) Elem(tag string, a ...interface{}) {
+//ELEM element
+func (out *OutPrint) ELEM(tag string, a ...interface{}) {
 	Elem(out, tag, a...)
 }

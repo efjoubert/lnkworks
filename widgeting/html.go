@@ -4,43 +4,52 @@ import (
 	"strings"
 )
 
-func Doctype(out *OutPrint) {
+func doctype(out *OutPrint) {
 	out.Println("<DOCTYPE html>")
 }
 
-func (out *OutPrint) Doctype() {
-	Doctype(out)
+//DOCTYPE element
+func (out *OutPrint) DOCTYPE() {
+	doctype(out)
 }
 
-func StartHtml(out *OutPrint, props ...string) {
+func startHTML(out *OutPrint, props ...string) {
 	StartElem(out, "html", props...)
 }
 
-func (out *OutPrint) StartHtml(props ...string) {
-	StartHtml(out, props...)
+//StartHTML element
+func (out *OutPrint) StartHTML(props ...string) {
+	startHTML(out, props...)
 }
 
-func Html(out *OutPrint, a ...interface{}) {
+func html(out *OutPrint, a ...interface{}) {
 	Elem(out, "html", a...)
 }
 
-func (out *OutPrint) Html(a ...interface{}) {
-	Html(out, a...)
+//HTML element
+func (out *OutPrint) HTML(a ...interface{}) {
+	html(out, a...)
 }
 
-func StartHead(out *OutPrint) {
+func startHead(out *OutPrint) {
 	StartElem(out, "head")
 }
 
-func (out *OutPrint) StartHead() {
-	StartHead(out)
+//StartHEAD element
+func (out *OutPrint) StartHEAD() {
+	startHead(out)
 }
 
-func Head(out *OutPrint, a ...interface{}) {
+func head(out *OutPrint, a ...interface{}) {
 	Elem(out, "head", a...)
 }
 
-func Scripts(out *OutPrint, src ...string) {
+//HEAD element
+func (out *OutPrint) HEAD(a ...interface{}) {
+	head(out, a...)
+}
+
+func scripts(out *OutPrint, src ...string) {
 	if len(src) > 0 {
 		si := 0
 		for si < len(src) {
@@ -51,40 +60,43 @@ func Scripts(out *OutPrint, src ...string) {
 					stype = "javascript"
 				}
 				s = s[strings.Index(s, ":")+1:]
-				StartScript(out, "text/"+stype, "src="+s)
+				startScript(out, "text/"+stype, "src="+s)
 			} else {
-				StartScript(out, "text/javascript", "src="+s)
+				startScript(out, "text/javascript", "src="+s)
 			}
-			EndScript(out)
+			endScript(out)
 		}
 	}
 }
 
-func (out *OutPrint) Scripts(src ...string) {
-	Scripts(out, src...)
+//SCRIPTS multiple script(s)
+func (out *OutPrint) SCRIPTS(src ...string) {
+	scripts(out, src...)
 }
 
-func StartScript(out *OutPrint, props ...string) {
+func startScript(out *OutPrint, props ...string) {
 	if props == nil {
 		props = []string{"type=text/javascript"}
 	}
 	StartElem(out, "script", props...)
-	EndScript(out)
+	//EndScript(out)
 }
 
-func (out *OutPrint) StartScript(props ...string) {
-	StartScript(out, props...)
+//StartSCRIPT element
+func (out *OutPrint) StartSCRIPT(props ...string) {
+	startScript(out, props...)
 }
 
-func EndScript(out *OutPrint) {
+func endScript(out *OutPrint) {
 	EndElem(out, "script")
 }
 
-func (out *OutPrint) EndScript() {
-	EndScript(out)
+//EndSCRIPT element
+func (out *OutPrint) EndSCRIPT() {
+	endScript(out)
 }
 
-func Script(out *OutPrint, a ...interface{}) {
+func script(out *OutPrint, a ...interface{}) {
 	if a == nil {
 		if a == nil {
 			a = []interface{}{}
@@ -116,247 +128,282 @@ func Script(out *OutPrint, a ...interface{}) {
 	Elem(out, "script", a...)
 }
 
-func (out *OutPrint) Script(a ...interface{}) {
-	Script(out, a...)
+//SCRIPT element
+func (out *OutPrint) SCRIPT(a ...interface{}) {
+	script(out, a...)
 }
 
-func EndHead(out *OutPrint) {
+func endHead(out *OutPrint) {
 	EndElem(out, "head")
 }
 
-func (out *OutPrint) EndHead() {
-	EndHead(out)
+//EndHEAD element
+func (out *OutPrint) EndHEAD() {
+	endHead(out)
 }
 
-func StartBody(out *OutPrint, props ...string) {
+func startBody(out *OutPrint, props ...string) {
 	StartElem(out, "body", props...)
 }
 
-func (out *OutPrint) StartBody(props ...string) {
-	StartBody(out, props...)
+//StartBODY element
+func (out *OutPrint) StartBODY(props ...string) {
+	startBody(out, props...)
 }
 
-func Body(out *OutPrint, a ...interface{}) {
+func body(out *OutPrint, a ...interface{}) {
 	Elem(out, "body", a...)
 }
 
-func StartTable(out *OutPrint, props ...string) {
+//BODY element
+func (out *OutPrint) BODY(a ...interface{}) {
+	body(out, a...)
+}
+
+func startTable(out *OutPrint, props ...string) {
 	StartElem(out, "table", props...)
 }
 
-func (out *OutPrint) StartTable(props ...string) {
-	StartTable(out, props...)
+//StartTABLE element
+func (out *OutPrint) StartTABLE(props ...string) {
+	startTable(out, props...)
 }
 
-func EndTable(out *OutPrint) {
+func endTable(out *OutPrint) {
 	EndElem(out, "table")
 }
 
-func (out *OutPrint) EndTable() {
-	EndTable(out)
+//EndTABLE element
+func (out *OutPrint) EndTABLE() {
+	endTable(out)
 }
 
-func Table(out *OutPrint, a ...interface{}) {
+func table(out *OutPrint, a ...interface{}) {
 	Elem(out, "table", a...)
 }
 
-func StartTr(out *OutPrint, props ...string) {
+//TABLE element
+func (out *OutPrint) TABLE(a ...interface{}) {
+	table(out, a...)
+}
+
+func startTr(out *OutPrint, props ...string) {
 	StartElem(out, "tr", props...)
 }
 
-func (out *OutPrint) StartTr(props ...string) {
-	StartTr(out, props...)
+//StartTR element
+func (out *OutPrint) StartTR(props ...string) {
+	startTr(out, props...)
 }
 
-func EndTr(out *OutPrint) {
+func endTr(out *OutPrint) {
 	EndElem(out, "tr")
 }
 
-func (out *OutPrint) EndTr() {
-	EndTr(out)
+//EndTR element
+func (out *OutPrint) EndTR() {
+	endTr(out)
 }
 
-func Tr(out *OutPrint, a ...interface{}) {
+func tr(out *OutPrint, a ...interface{}) {
 	Elem(out, "tr", a...)
 }
 
-func (out *OutPrint) Tr(a ...interface{}) {
-	Tr(out, a...)
+//TR element
+func (out *OutPrint) TR(a ...interface{}) {
+	tr(out, a...)
 }
 
-func StartTHead(out *OutPrint, props ...string) {
+func startTHead(out *OutPrint, props ...string) {
 	StartElem(out, "thead", props...)
 }
 
-func (out *OutPrint) StartTHead(props ...string) {
-	StartTHead(out, props...)
+//StartTHEAD element
+func (out *OutPrint) StartTHEAD(props ...string) {
+	startTHead(out, props...)
 }
 
-func EndTHead(out *OutPrint) {
+func endTHead(out *OutPrint) {
 	EndElem(out, "thead")
 }
 
-func (out *OutPrint) EndTHead() {
-	EndTHead(out)
+//EndTHEAD element
+func (out *OutPrint) EndTHEAD() {
+	endTHead(out)
 }
 
-func THead(out *OutPrint, a ...interface{}) {
+func tHead(out *OutPrint, a ...interface{}) {
 	Elem(out, "thead", a...)
 }
 
-func (out *OutPrint) THead(a ...interface{}) {
-	THead(out, a...)
+//THEAD element
+func (out *OutPrint) THEAD(a ...interface{}) {
+	tHead(out, a...)
 }
 
-func StartTFoot(out *OutPrint, props ...string) {
+func startTFoot(out *OutPrint, props ...string) {
 	StartElem(out, "tfoot", props...)
 }
 
-func (out *OutPrint) StartTFoot(props ...string) {
-	StartTFoot(out, props...)
+//StartTFOOT element
+func (out *OutPrint) StartTFOOT(props ...string) {
+	startTFoot(out, props...)
 }
 
-func EndTFoot(out *OutPrint) {
+func endTFoot(out *OutPrint) {
 	EndElem(out, "tfoot")
 }
 
-func (out *OutPrint) EndTFoot() {
-	EndTFoot(out)
+//EndTFOOT element
+func (out *OutPrint) EndTFOOT() {
+	endTFoot(out)
 }
 
-func TFoot(out *OutPrint, a ...interface{}) {
+func tFoot(out *OutPrint, a ...interface{}) {
 	Elem(out, "tfoot", a...)
 }
 
-func (out *OutPrint) TFoot(a ...interface{}) {
-	TFoot(out, a...)
+//TFOOT element
+func (out *OutPrint) TFOOT(a ...interface{}) {
+	tFoot(out, a...)
 }
 
-func (out *OutPrint) Table(a ...interface{}) {
-	Table(out, a...)
-}
-
-func StartTh(out *OutPrint, props ...string) {
+func startTh(out *OutPrint, props ...string) {
 	StartElem(out, "th", props...)
 }
 
-func (out *OutPrint) StartTh(props ...string) {
-	StartTh(out, props...)
+//StartTH element
+func (out *OutPrint) StartTH(props ...string) {
+	startTh(out, props...)
 }
 
-func EndTh(out *OutPrint) {
+func endTh(out *OutPrint) {
 	EndElem(out, "th")
 }
 
-func (out *OutPrint) EndTh() {
-	EndTh(out)
+//EndTH element
+func (out *OutPrint) EndTH() {
+	endTh(out)
 }
 
-func Th(out *OutPrint, a ...interface{}) {
+func th(out *OutPrint, a ...interface{}) {
 	Elem(out, "th", a...)
 }
 
-func (out *OutPrint) Th(a ...interface{}) {
-	Th(out, a...)
+//TH element
+func (out *OutPrint) TH(a ...interface{}) {
+	th(out, a...)
 }
 
-func StartTd(out *OutPrint, props ...string) {
+func startTd(out *OutPrint, props ...string) {
 	StartElem(out, "td", props...)
 }
 
-func (out *OutPrint) StartTd(props ...string) {
-	StartTd(out, props...)
+//StartTD element
+func (out *OutPrint) StartTD(props ...string) {
+	startTd(out, props...)
 }
 
-func EndTd(out *OutPrint) {
+func endTd(out *OutPrint) {
 	EndElem(out, "td")
 }
 
-func (out *OutPrint) EndTd() {
-	EndTd(out)
+//EndTD element
+func (out *OutPrint) EndTD() {
+	endTd(out)
 }
 
-func Td(out *OutPrint, a ...interface{}) {
+func td(out *OutPrint, a ...interface{}) {
 	Elem(out, "td", a...)
 }
 
-func (out *OutPrint) Td(a ...interface{}) {
-	Td(out, a...)
+//TD element
+func (out *OutPrint) TD(a ...interface{}) {
+	td(out, a...)
 }
 
-func StartDiv(out *OutPrint, props ...string) {
+func startDiv(out *OutPrint, props ...string) {
 	StartElem(out, "div", props...)
 }
 
-func (out *OutPrint) StartDiv(props ...string) {
-	StartDiv(out, props...)
+//StartDIV element
+func (out *OutPrint) StartDIV(props ...string) {
+	startDiv(out, props...)
 }
 
-func EndDiv(out *OutPrint) {
+func endDiv(out *OutPrint) {
 	EndElem(out, "div")
 }
 
-func (out *OutPrint) EndDiv() {
-	EndDiv(out)
+//EndDIV element
+func (out *OutPrint) EndDIV() {
+	endDiv(out)
 }
 
-func Div(out *OutPrint, a ...interface{}) {
+func div(out *OutPrint, a ...interface{}) {
 	Elem(out, "div", a...)
 }
 
-func (out *OutPrint) Div(a ...interface{}) {
-	Div(out, a...)
+//DIV element
+func (out *OutPrint) DIV(a ...interface{}) {
+	div(out, a...)
 }
 
-func EndBody(out *OutPrint) {
+func endBody(out *OutPrint) {
 	EndElem(out, "body")
 }
 
-func (out *OutPrint) EndBody() {
-	EndBody(out)
+//EndBODY element
+func (out *OutPrint) EndBODY() {
+	endBody(out)
 }
 
-func EndHtml(out *OutPrint) {
+func endHTML(out *OutPrint) {
 	EndElem(out, "html")
 }
 
-func (out *OutPrint) EndHtml() {
-	EndHtml(out)
+//EndHTML element
+func (out *OutPrint) EndHTML() {
+	endHTML(out)
 }
 
-func StartTextArea(out *OutPrint, props ...string) {
+func startTextArea(out *OutPrint, props ...string) {
 	StartElem(out, "textarea", props...)
 }
 
-func (out *OutPrint) StartTextArea(props ...string) {
-	StartTextArea(out, props...)
+//StartTEXTAREA element
+func (out *OutPrint) StartTEXTAREA(props ...string) {
+	startTextArea(out, props...)
 }
 
-func EndTextArea(out *OutPrint) {
+func endTextArea(out *OutPrint) {
 	EndElem(out, "textarea")
 }
 
-func (out *OutPrint) EndTextArea() {
-	EndTextArea(out)
+//EndTEXTAREA element
+func (out *OutPrint) EndTEXTAREA() {
+	endTextArea(out)
 }
 
-func TextArea(out *OutPrint, a ...interface{}) {
+func textArea(out *OutPrint, a ...interface{}) {
 	Elem(out, "textarea", a...)
 }
 
-func (out *OutPrint) TextArea(a ...interface{}) {
-	TextArea(out, a...)
+//TEXTAREA element
+func (out *OutPrint) TEXTAREA(a ...interface{}) {
+	textArea(out, a...)
 }
 
-func Input(out *OutPrint, props ...string) {
+func input(out *OutPrint, props ...string) {
 	SingleElem(out, "input", props...)
 }
 
-func (out *OutPrint) Input(props ...string) {
-	Input(out, props...)
+//INPUT input element
+func (out *OutPrint) INPUT(props ...string) {
+	input(out, props...)
 }
 
-func Field(out *OutPrint, name string, active bool, ftype string, a ...interface{}) {
+func field(out *OutPrint, name string, active bool, ftype string, a ...interface{}) {
 	if len(a) == 2 {
 		val := a[0]
 		if valfunc, valfuncok := a[0].(func(out *OutPrint, name string, active bool, ftype string, value interface{}, a ...interface{})); valfuncok {
@@ -367,6 +414,7 @@ func Field(out *OutPrint, name string, active bool, ftype string, a ...interface
 	}
 }
 
+//Field field
 func (out *OutPrint) Field(name string, active bool, ftype string, a ...interface{}) {
-	Field(out, name, active, ftype, a...)
+	field(out, name, active, ftype, a...)
 }

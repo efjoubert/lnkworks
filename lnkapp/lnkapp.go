@@ -85,10 +85,9 @@ func test() {
 	lnksworks.RegisterEmbededResources("test/test.html", strings.NewReader(""))
 	lnksworks.MapActiveCommand("test/test.html",
 		"testcommand", func(atvpros *lnksworks.ActiveProcessor, path string, a ...string) (err error) {
-			atvpros.Out().Elem("span", func(out *widgeting.OutPrint, a ...interface{}) {
+			atvpros.Out().ELEM("span", func(out *widgeting.OutPrint) {
 				out.Print("content in span")
 			})
-
 			return err
 		},
 	)

@@ -9,7 +9,8 @@ import (
 	"strings"
 
 	"github.com/dop251/goja"
-	"github.com/efjoubert/lnkworks/widgeting"
+	// "github.com/efjoubert/lnkworks/widgeting"
+	"./widgeting"
 )
 
 //Exception interface
@@ -293,7 +294,10 @@ func atvRSAPCCoding(hasCode bool, atvRsAPC *activeRSActivePassiveContent, atvpar
 	var atvrAPCiCode = ""
 	var cntntrs = atvRsAPC.cntntrs
 	var cntntpos = 0
-	var cntntL = len(cntntrs.seekis)
+	var cntntL = 0
+	if cntntrs != nil {
+		cntntL = len(cntntrs.seekis)
+	}
 	var cntntpoint []int64
 	if cntntpos < cntntL {
 		cntntpoint = cntntrs.seekis[cntntpos][:]
@@ -352,14 +356,20 @@ func atvRSAPCCoding(hasCode bool, atvRsAPC *activeRSActivePassiveContent, atvpar
 	}
 	var cders = atvRsAPC.cders
 	var cdepos = 0
-	var cdeL = len(cders.seekis)
+	var cdeL = 0
+	if cders != nil {
+		cdeL = len(cders.seekis)
+	}
 	var cdepoint []int64
 	if cdepos < cdeL {
 		cdepoint = cders.seekis[cdepos][:]
 	}
 
 	var atvapcpos = 0
-	var atvapcL = len(atvRsAPC.seekis)
+	var atvapcL = 0
+	if atvRsAPC.Seeker != nil {
+		atvapcL = len(atvRsAPC.seekis)
+	}
 	var atvapcpoint []int64
 	if atvapcpos < atvapcL {
 		atvapcpoint = atvRsAPC.seekis[atvapcpos][:]
