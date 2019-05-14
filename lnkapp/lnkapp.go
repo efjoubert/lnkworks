@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	lnksworks "github.com/efjoubert/lnkworks"
+	lnksworks "../../lnkworks"
 	activeruling "github.com/efjoubert/lnkworks/activeruling"
 	embed "github.com/efjoubert/lnkworks/embed"
 	widgeting "github.com/efjoubert/lnkworks/widgeting"

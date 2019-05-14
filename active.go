@@ -330,6 +330,8 @@ func atvRSAPCCoding(hasCode bool, atvRsAPC *activeRSActivePassiveContent, atvpar
 					} else {
 						propvals = []string{}
 					}
+				} else {
+					propvaln++
 				}
 			}
 			atvRsAPC.elemProps.standard[propname] = propvals[:]
@@ -1475,12 +1477,16 @@ func validatePassiveCapturedIO(token *activeParseToken, lbls []string) (valid bo
 									foundPropAssign = true
 								}
 							}
-							if !token.psvUnvalidatedIO.Empty() && token.psvUnvalidatedIO.MatchExp(regexprop) {
-								elemPropName = token.psvUnvalidatedIO.String()
-								token.psvUnvalidatedIO.Close()
-								validPropName = true
-							} else {
-								break
+							if s != "" {
+								if !token.psvUnvalidatedIO.Empty() && token.psvUnvalidatedIO.MatchExp(regexprop) {
+									elemPropName = token.psvUnvalidatedIO.String()
+									token.psvUnvalidatedIO.Close()
+									validPropName = true
+								} else {
+									break
+								}
+							} else if !doneWithProp {
+								continue
 							}
 						} else {
 							doneWithProp = actualSizei == actualSize
