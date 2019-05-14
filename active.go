@@ -305,7 +305,9 @@ func atvRSAPCCoding(hasCode bool, atvRsAPC *activeRSActivePassiveContent, atvpar
 		cntntpoint = cntntrs.seekis[cntntpos][:]
 	}
 
-	if cntntpos < cntntL {
+	var hasElem = atvRsAPC.elemProps != nil
+
+	if cntntpos < cntntL || hasElem {
 		if atvRsAPC.atvRsACPi != -1 {
 			atvrAPCiCode = fmt.Sprint(atvRsAPC.appendLevels(atvparser, 0))
 			atvrAPCiCode = strings.ReplaceAll(strings.Replace(strings.Replace(atvrAPCiCode, "[", "", 1), "]", "", 1), " ", ",")
@@ -315,7 +317,6 @@ func atvRSAPCCoding(hasCode bool, atvRsAPC *activeRSActivePassiveContent, atvpar
 		}
 	}
 
-	var hasElem = atvRsAPC.elemProps != nil
 	var elemCode = ""
 	if hasElem {
 		var atvPropCode = ""

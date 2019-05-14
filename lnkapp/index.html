@@ -10,7 +10,7 @@
     <!-- <@$out.Print($parameters.Parameter("test-param"));@> -->
 </head>
 <body>
-        <test:sub id=@ = "FROMCODE" ; @ val="TEST">ID=<@ $out.Print($elemprops().Parameter("val"));@></test:sub>
+        <test:sub id=@ = "FROMCODE" ; @ val="TEST">ID=<@ $out.Print($elemprops().Parameter("id"));@></test:sub>
     <@for(var d=0;d<100;d++){@><:testcontent>TEST <test:sub><@$out.Print("SUBSUB");@></test:sub><@$out.Print("CONTENT");@> FROM INDEX</:testcontent>space<@}@>    
 </body>
 </html>bla
