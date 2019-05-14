@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	embed "../../lnkworks/embed"
-	widgeting "../../lnkworks/widgeting"
 	lnksworks "github.com/efjoubert/lnkworks"
 	activeruling "github.com/efjoubert/lnkworks/activeruling"
+	embed "github.com/efjoubert/lnkworks/embed"
+	widgeting "github.com/efjoubert/lnkworks/widgeting"
 )
 
 func main() {
@@ -71,7 +71,7 @@ func main() {
 		"section/sub.html", strings.NewReader(`<span>section->sub</span>`),
 	)
 
-	lnksworks.RegisterRoute("/lnks", "")
+	lnksworks.RegisterRoute("/", "")
 	svr := lnksworks.NewServer(":1030", false, "", "")
 	if err := svr.Listen(); err != nil {
 		panic(err)

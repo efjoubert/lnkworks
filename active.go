@@ -75,6 +75,9 @@ func (atvparse *activeParser) setRSByPath(path string) (err error) {
 			}
 		}
 	}
+	if err != nil {
+		fmt.Println(err)
+	}
 	return
 }
 
@@ -867,6 +870,13 @@ func evalStartActiveRSEntryPoint(atvparse *activeParser, atvRSAPCStart *activeRS
 }
 
 func nextActiveParseToken(token *activeParseToken, parser *activeParser, rspath string, atvRsAPCStartIndex int64, atvRsAPCEndIndex int64, atvElemProps *Parameters, altlbls ...string) (nexttoken *activeParseToken) {
+	var rootElemPath = rspath
+	if strings.HasPrefix(rootElemPath, "/") {
+		if strings.HasSuffix(token.rsroot, "/") {
+			rootElemPath = rootElemPath[1:]
+		}
+		rootElemPath = token.rsroot + rootElemPath
+	}
 	rspathext := filepath.Ext(rspath)
 	rspathname := rspath
 	rsroot := rspath
@@ -921,7 +931,7 @@ func nextActiveParseToken(token *activeParseToken, parser *activeParser, rspath 
 		parkedLevel:        0}
 	parser.atvTkns[nexttoken] = token
 
-	if nexttoken.atvrs = parser.atvrs(rspath); nexttoken.atvrs != nil {
+	if nexttoken.atvrs = parser.atvrs(rootElemPath); nexttoken.atvrs != nil {
 		nexttoken.atvrs.Seek(0, 0)
 	}
 
@@ -1243,7 +1253,14 @@ func parseActiveToken(token *activeParseToken, lbls []string, lblsi []int) (next
 									token.parkedStartIndex = -1
 									token.parkedEndIndex = -1
 								} else {
-									if err = token.parse.setRSByPath(elemPath); err == nil {
+									var rootElemPath = elemPath
+									if strings.HasPrefix(rootElemPath, "/") {
+										if strings.HasSuffix(token.rsroot, "/") {
+											rootElemPath = rootElemPath[1:]
+										}
+										rootElemPath = token.rsroot + rootElemPath
+									}
+									if err = token.parse.setRSByPath(rootElemPath); err == nil {
 										var atvrsapcsi = token.parkedStartIndex
 										var atvrsapcei = token.parkedEndIndex
 										token.parkedStartIndex = -1
@@ -1364,6 +1381,8 @@ func validatePassiveCapturedIO(token *activeParseToken, lbls []string) (valid bo
 			var actualSizei = int64(0)
 			var foundFSlash = false
 			var validElemName = false
+			var rootElemPath = ""
+
 			for actualSizei <= actualSize && !validElemName {
 				if r, _, _ := token.psvCapturedIO.ReadRune(); r > 0 {
 					actualSizei += int64(len(string(r)))
@@ -1403,20 +1422,15 @@ func validatePassiveCapturedIO(token *activeParseToken, lbls []string) (valid bo
 								}
 							}
 							if strings.HasPrefix(elemName, ".:") {
-								elemPath = strings.ReplaceAll(elemName[2:], ":", "/") + elemExt
-							} else if strings.HasPrefix(elemName, ":") {
 								elemPath = strings.ReplaceAll(elemName[1:], ":", "/") + elemExt
+							} else if strings.HasPrefix(elemName, ":") {
+								elemPath = strings.ReplaceAll(elemName, ":", "/") + elemExt
 							} else {
 								elemPath = strings.ReplaceAll(elemName, ":", "/") + elemExt
 							}
-
-							if err = token.parse.setRSByPath(token.rsroot + elemPath); err == nil {
-								if token.parse.atvrs(token.rsroot+elemPath) != nil {
-									token.psvUnvalidatedIO.Close()
-									validElemName = true
-								}
-							}
+							validElemName = true
 							valid = validElemName
+							token.psvUnvalidatedIO.Close()
 							break
 						} else {
 							break
@@ -1565,6 +1579,27 @@ func validatePassiveCapturedIO(token *activeParseToken, lbls []string) (valid bo
 
 			if token.psvUnvalidatedIO != nil && !token.psvUnvalidatedIO.Empty() {
 				token.psvUnvalidatedIO.Close()
+			}
+			if validElemName {
+				if !(single && ((":"+token.rsrootname) == elemName || (".:"+token.rsrootname) == elemName) && elemExt == token.rspathext) {
+					rootElemPath = elemPath
+					if strings.HasPrefix(rootElemPath, "/") {
+						if strings.HasSuffix(token.rsroot, "/") {
+							rootElemPath = rootElemPath[1:]
+						}
+						rootElemPath = token.rsroot + rootElemPath
+					}
+					if err = token.parse.setRSByPath(rootElemPath); err == nil {
+						if token.parse.atvrs(rootElemPath) != nil {
+							token.psvUnvalidatedIO.Close()
+							//	validElemName = true
+						} else {
+							validElemName = false
+						}
+					} else {
+						validElemName = false
+					}
+				}
 			}
 		}
 	}
