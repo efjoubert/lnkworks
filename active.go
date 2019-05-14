@@ -1237,11 +1237,6 @@ func parseActiveToken(token *activeParseToken, lbls []string, lblsi []int) (next
 								}
 							}
 							if elemName != "" && elemPath != "" && elemExt != "" {
-								if !(strings.HasPrefix(elemPath, "./") || strings.HasPrefix(elemPath, "/")) {
-									if token.rsroot != "" {
-										elemPath = token.rsroot + elemPath
-									}
-								}
 								if single && (elemName == (".:"+token.rsrootname) || elemName == (":"+token.rsrootname)) && token.rspathext == elemExt {
 									if token.atvRsAPC.prkdPoint != nil {
 										var atvrsapcei = token.endRIndex
