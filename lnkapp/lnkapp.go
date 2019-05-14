@@ -42,7 +42,7 @@ func main() {
 		"bootstrap-all.js", embed.BootstrapAllJS(),
 		"bootstrap-datatables.js", embed.DataTablesJS(true),
 		"datatables.js", embed.DataTablesJS(false),
-		"datatables.css", embed.DataTablesCSS(),
+		"datatables.css", embed.DataTablesCSS(false),
 		"mdb.js", embed.MdbJS(),
 		"material-icons.css", embed.MaterialIconsCSS(),
 		"material-icons.woff2", embed.MaterialIconsWoff2(),

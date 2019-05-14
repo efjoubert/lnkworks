@@ -58,39 +58,41 @@ func retrieveRs(rt *Route, root string, path string, retrievedRs map[string]io.R
 
 //ServeContent that invoke mapped hndlefunc -> func(svr *Server, rt *Route, root string, path string, mimetype string, w http.ResponseWriter, r *http.Request, active *ActiveProcessor)
 func (rt *Route) ServeContent(path string, w http.ResponseWriter, r *http.Request, active *ActiveProcessor, retrievedRs map[string]io.ReadSeeker) {
-	rs, rserr := retrieveRs(rt, "", path, retrievedRs)
-	if rs != nil && rserr == nil {
-		if active == nil {
-			http.ServeContent(w, r, path, time.Now(), rs)
-		} else {
-			var altlbls []string
-			if strings.HasSuffix(path, "babel.js") || strings.HasSuffix(path, "pdf.js") {
-				altlbls = []string{"[@", "@]"}
-			}
-			rserr = active.Process(rs, rt.rootpath, path, func(root string, path string) (rsfound io.ReadSeeker, rsfounderr error) {
-				rsfound, rsfounderr = retrieveRs(rt, root, path, retrievedRs)
-
-				return rsfound, rsfounderr
-			}, altlbls...)
-		}
-	}
-	if rserr != nil {
-		w.Write([]byte(rserr.Error()))
-	}
-	if retrievedRs != nil {
-		if len(retrievedRs) > 0 {
-			for rspath, rs := range retrievedRs {
-				if rsf, rsfok := rs.(*os.File); rsfok {
-					rsf.Close()
-					rsf = nil
-				} else if rscur, rscurok := rs.(*ReadWriteCursor); rscurok {
-					rscur.Close()
-					rscur = nil
+	if !strings.HasSuffix(path, ".map") {
+		rs, rserr := retrieveRs(rt, "", path, retrievedRs)
+		if rs != nil && rserr == nil {
+			if active == nil {
+				http.ServeContent(w, r, path, time.Now(), rs)
+			} else {
+				var altlbls []string
+				if strings.HasSuffix(path, "babel.js") || strings.HasSuffix(path, "pdf.js") {
+					altlbls = []string{"[@", "@]"}
 				}
-				delete(retrievedRs, rspath)
+				rserr = active.Process(rs, rt.rootpath, path, func(root string, path string) (rsfound io.ReadSeeker, rsfounderr error) {
+					rsfound, rsfounderr = retrieveRs(rt, root, path, retrievedRs)
+
+					return rsfound, rsfounderr
+				}, altlbls...)
 			}
 		}
-		retrievedRs = nil
+		if rserr != nil {
+			w.Write([]byte(rserr.Error()))
+		}
+		if retrievedRs != nil {
+			if len(retrievedRs) > 0 {
+				for rspath, rs := range retrievedRs {
+					if rsf, rsfok := rs.(*os.File); rsfok {
+						rsf.Close()
+						rsf = nil
+					} else if rscur, rscurok := rs.(*ReadWriteCursor); rscurok {
+						rscur.Close()
+						rscur = nil
+					}
+					delete(retrievedRs, rspath)
+				}
+			}
+			retrievedRs = nil
+		}
 	}
 }
 
