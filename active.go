@@ -325,7 +325,7 @@ func atvRSAPCCoding(hasCode bool, atvRsAPC *activeRSActivePassiveContent, atvpar
 			propvaln = 0
 			for propvaln < len(propvals) {
 				if strings.HasPrefix(propvals[propvaln], "@@") && strings.HasSuffix(propvals[propvaln], "@@") {
-					atvPropCode += "$elemprops().SetParameter(\"" + propname + "\",false," + propvals[propvaln][2:len(propvals[propvaln])-2] + ");"
+					atvPropCode += "$elemprops().SetParameter(\"" + propname + "\",true," + propvals[propvaln][2:len(propvals[propvaln])-2] + ");"
 					if len(propvals) > 1 {
 						propvals = append(propvals[:propvaln-1], propvals[propvaln:]...)
 					} else {
