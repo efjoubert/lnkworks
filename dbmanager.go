@@ -338,6 +338,57 @@ func (dbqry *DBQuery) Process() (err error) {
 	return
 }
 
+func DbFormatColDelimSettings(coldelim ...string) (readsettings map[string]string) {
+	readsettings["format-type"] = "csv"
+	readsettings["text-par"] = "\""
+	if coldelim != nil && len(coldelim) == 1 {
+		readsettings["col-sep"] = coldelim[0]
+	} else {
+		readsettings["col-sep"] = ","
+	}
+	readsettings["row-sep"] = "\r\n"
+	return
+}
+
+var dbReadFormats = map[string]func() map[string]string{}
+var dbReadFormattingFuncs = map[string]func(map[string]string, *DbResultSet, io.Writer) error{}
+
+var dbReadFormatsLock = &sync.RWMutex{}
+
+func (dbqry *DBQuery) ReadAllCustom(w io.Writer, settings map[string]string, formatFunction func(map[string]string, *DbResultSet, io.Writer) error) {
+	if formatFunction != nil && settings != nil && len(settings) > 0 && w != nil {
+		formatFunction(settings, dbqry.RSet, w)
+	}
+}
+
+func (dbqry *DBQuery) ReadAll(w io.Writer, format string) {
+	if w == nil || format == "" {
+		return
+	}
+	dbReadFormatsLock.RLock()
+	var settings func() map[string]string
+	if settings = dbReadFormats[format]; settings != nil {
+		var formatFunction = dbReadFormattingFuncs[format]
+		if formatFunction != nil {
+			defer dbReadFormatsLock.RUnlock()
+			formatFunction(settings(), dbqry.RSet, w)
+			formatFunction = nil
+		} else {
+			dbReadFormatsLock.RUnlock()
+		}
+		settings = nil
+	} else {
+		dbReadFormatsLock.RUnlock()
+	}
+}
+
+func RegisterDbReadFormat(formatname string, settings map[string]string, formatFunction func(map[string]string, *DbResultSet, io.Writer) error) {
+	if formatname != "" && settings != nil && len(settings) > 0 && formatFunction != nil {
+		dbReadFormatsLock.RLock()
+		defer dbReadFormatsLock.RUnlock()
+	}
+}
+
 //PrintResult [refer to OutputResultSet] - helper method that output res *DbResultSet to the following formats into a io.Writer
 //contentext=.js => javascript
 //contentext=.json => json
