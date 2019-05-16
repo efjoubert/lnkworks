@@ -222,8 +222,120 @@ func (dbmngr *DbManager) Execute(alias string, query string, args ...interface{}
 
 //DBQuery DBQuery controller
 type DBQuery struct {
-	RSet *DbResultSet
-	Err  error
+	RSet         *DbResultSet
+	readColsFunc ReadColumnsFunc
+	readRwFunc   ReadRowFunc
+	prcssFunc    ProcessingFunc
+	Err          error
+}
+
+//ReadColumnsFunc definition
+type ReadColumnsFunc = func(dbqry *DBQuery, columns []string, columntypes []*ColumnType)
+
+//ReadRowFunc definition
+type ReadRowFunc = func(dbqry *DBQuery, data []interface{}, firstRec bool, lastRec bool)
+
+//ProcessingFunc definition
+type ProcessingFunc = func(dbqry *DBQuery, stage QueryStage, a ...interface{})
+
+//QueryStage stage
+type QueryStage int
+
+var qryStages = []string{"STARTED", "READING-COLUMNS", "COMPLETED-READING-COLUMNS", "READING-ROWS", "COMPLETED-READING-ROWS", "COMPLETED"}
+
+func (qrystage QueryStage) String() (s string) {
+	if qrystage > 0 && qrystage <= QueryStage(len(qryStages)) {
+		s = qryStages[qrystage-1]
+	} else {
+		s = "UNKOWN"
+	}
+	return
+}
+
+//Process reading Columns then reading rows one by one till eof and finally indicate done processing
+func (dbqry *DBQuery) Process() (err error) {
+	var didProcess = false
+
+	var columns = dbqry.MetaData().Columns()
+	var coltypes = dbqry.MetaData().ColumnTypes()
+	if dbqry.prcssFunc != nil {
+		if !didProcess {
+			didProcess = true
+		}
+		dbqry.prcssFunc(dbqry, 1)
+	}
+	if dbqry.prcssFunc != nil {
+		if !didProcess {
+			didProcess = true
+		}
+		dbqry.prcssFunc(dbqry, 2)
+	}
+	if dbqry.readColsFunc != nil {
+		if !didProcess {
+			didProcess = true
+		}
+		dbqry.readColsFunc(dbqry, columns, coltypes)
+	}
+
+	if dbqry.prcssFunc != nil {
+		if !didProcess {
+			didProcess = true
+		}
+		dbqry.prcssFunc(dbqry, 3)
+	}
+
+	if dbqry.prcssFunc != nil {
+		if !didProcess {
+			didProcess = true
+		}
+		dbqry.prcssFunc(dbqry, 4)
+	}
+	if dbqry.readRwFunc != nil {
+		if !didProcess {
+			didProcess = true
+		}
+
+		var hasRows = dbqry.Next()
+		var rdata []interface{}
+		var firstRow = true
+		for hasRows {
+			rdata = dbqry.Data()
+			hasRows = dbqry.Next()
+			dbqry.readRwFunc(dbqry, rdata, firstRow, !hasRows)
+			if firstRow {
+				firstRow = false
+			}
+		}
+	}
+	if dbqry.prcssFunc != nil {
+		if !didProcess {
+			didProcess = true
+		}
+		dbqry.prcssFunc(dbqry, 5, columns, coltypes)
+	}
+
+	if columns != nil {
+		columns = nil
+	}
+
+	if coltypes != nil {
+		coltypes = nil
+	}
+
+	if dbqry.prcssFunc != nil {
+		if !didProcess {
+			didProcess = true
+		}
+		dbqry.prcssFunc(dbqry, 6)
+	}
+
+	if didProcess {
+		if dbqry.RSet != nil {
+			err = dbqry.RSet.Close()
+			dbqry.RSet = nil
+		}
+	}
+	return
 }
 
 //PrintResult [refer to OutputResultSet] - helper method that output res *DbResultSet to the following formats into a io.Writer
@@ -266,7 +378,50 @@ func (dbqry *DBQuery) Next() bool {
 //Query query aliased connection and returns a DBQuery controller for the underlying resultset
 func (dbmngr *DbManager) Query(alias string, query string, args ...interface{}) (dbquery *DBQuery) {
 	if cn := dbmngr.Connection(alias); cn != nil {
-		dbquery = &DBQuery{}
+		var rdColsFunc ReadColumnsFunc
+		var rdRowFunc ReadRowFunc
+		var prcessFunc ProcessingFunc
+		var foundOk = false
+		if len(args) > 0 {
+			var n = 0
+			for n < len(args) {
+				if rdColsFunc == nil {
+					if rdColsFunc, foundOk = args[n].(ReadColumnsFunc); foundOk {
+						if len(args) > 1 {
+							args = append(args[:n], args[n+1:]...)
+						} else {
+							args = nil
+						}
+					} else {
+						n++
+					}
+				} else if rdRowFunc == nil {
+					if rdRowFunc, foundOk = args[n].(ReadRowFunc); foundOk {
+						if len(args) > 1 {
+							args = append(args[:n], args[n+1:]...)
+						} else {
+							args = nil
+						}
+					} else {
+						n++
+					}
+				} else if prcessFunc == nil {
+					if prcessFunc, foundOk = args[n].(ProcessingFunc); foundOk {
+						if len(args) > 1 {
+							args = append(args[:n], args[n+1:]...)
+						} else {
+							args = nil
+						}
+					} else {
+						n++
+					}
+				} else {
+					n++
+				}
+			}
+		}
+		dbquery = &DBQuery{readColsFunc: rdColsFunc, readRwFunc: rdRowFunc, prcssFunc: prcessFunc}
+
 		dbquery.RSet, dbquery.Err = cn.Query(query, args...)
 	}
 	return dbquery

@@ -82,14 +82,15 @@ func (stmnt *DbStatement) Query(query string, args ...interface{}) (rset *DbResu
 
 //Close the allocated transaction, sql.Tx associated to this DbStatement
 //It will by default perform a commit before releasing the transaction reference
-func (stmnt *DbStatement) Close() {
+func (stmnt *DbStatement) Close() (err error) {
 	if stmnt.tx != nil {
-		stmnt.tx.Commit()
+		err = stmnt.tx.Commit()
 		stmnt.tx = nil
 	}
 	if stmnt.cn != nil {
 		stmnt.cn = nil
 	}
+	return
 }
 
 func columnTypes(sqlcoltypes []*sql.ColumnType) (coltypes []*ColumnType) {

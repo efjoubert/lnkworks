@@ -176,7 +176,7 @@ func (rset *DbResultSet) Next() (next bool, err error) {
 
 //Close the DbResultSet as well as the underlying DbStatement related to this DbResultSet
 //After this action the DbResultSet is 'empty' or cleaned up in a golang world
-func (rset *DbResultSet) Close() {
+func (rset *DbResultSet) Close() (err error) {
 	if rset.data != nil {
 		rset.data = nil
 	}
@@ -191,11 +191,12 @@ func (rset *DbResultSet) Close() {
 		rset.rsmetadata.cols = nil
 	}
 	if rset.stmnt != nil {
-		rset.stmnt.Close()
+		err = rset.stmnt.Close()
 		rset.stmnt = nil
 	}
 	if rset.dosomething != nil {
 		close(rset.dosomething)
 		rset.dosomething = nil
 	}
+	return
 }

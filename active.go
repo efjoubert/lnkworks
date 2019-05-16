@@ -861,9 +861,64 @@ func evalStartActiveRSEntryPoint(atvparse *activeParser, atvRSAPCStart *activeRS
 					return atvparse.atvElemPropsLevelled[len(atvparse.atvElemPropsLevelled)-1]
 				}
 				return emptyElemProps
-			}, "$out": atvparse.atv.Out(), "$atvparse": atvparse, "$parameters": atvparse.atv.params, "$dbexecute": func(alias string, query string, args ...interface{}) *DBExecuted {
+			}, "$out": atvparse.atv.Out(), "$altout": atvparse.atv.AlternateOut, "$removealtout": atvparse.atv.RemoveAlternateOut, "$atvparse": atvparse, "$parameters": atvparse.atv.params, "$dbexecute": func(alias string, query string, args ...interface{}) *DBExecuted {
 				return DatabaseManager().Execute(alias, query, args...)
 			}, "$dbquery": func(alias string, query string, args ...interface{}) *DBQuery {
+				var rColsFunc ReadColumnsFunc
+				var rRowFunc ReadRowFunc
+				var prcssngFunc ProcessingFunc
+
+				var n = 0
+				var d func(goja.FunctionCall) goja.Value
+				var dcolsfunc func(goja.FunctionCall) goja.Value
+				var drowfunc func(goja.FunctionCall) goja.Value
+				var ddoneFunc func(goja.FunctionCall) goja.Value
+				var foundCallable = false
+				for n < len(args) {
+					if d, foundCallable = args[n].(func(goja.FunctionCall) goja.Value); foundCallable {
+						if rColsFunc == nil {
+							dcolsfunc = d
+							rColsFunc = func(dbquery *DBQuery, columns []string, coltypes []*ColumnType) {
+								var funcObj goja.FunctionCall
+								funcObj.Arguments = []goja.Value{atvparse.atv.vm.ToValue(dbquery), atvparse.atv.vm.ToValue(columns), atvparse.atv.vm.ToValue(coltypes)}
+								funcObj.This = atvparse.atv.vm.Get("this")
+								dcolsfunc(funcObj)
+							}
+							args[n] = rColsFunc
+						} else if rRowFunc == nil {
+							drowfunc = d
+							rRowFunc = func(dbquery *DBQuery, data []interface{}, firstrec bool, lastrec bool) {
+								var funcObj goja.FunctionCall
+								funcObj.Arguments = []goja.Value{atvparse.atv.vm.ToValue(dbquery), atvparse.atv.vm.ToValue(data), atvparse.atv.vm.ToValue(firstrec), atvparse.atv.vm.ToValue(lastrec)}
+								funcObj.This = atvparse.atv.vm.Get("this")
+								drowfunc(funcObj)
+							}
+							args[n] = rRowFunc
+						} else if prcssngFunc == nil {
+							ddoneFunc = d
+							prcssngFunc = func(dbquery *DBQuery, stage QueryStage, a ...interface{}) {
+								var funcObj goja.FunctionCall
+								var funcAttributes = make([]goja.Value, 2+len(a))
+								funcAttributes[0] = atvparse.atv.vm.ToValue(dbquery)
+								funcAttributes[1] = atvparse.atv.vm.ToValue(stage)
+								if len(a) > 0 {
+									for n, d := range a {
+										funcAttributes[n+2] = atvparse.atv.vm.ToValue(d)
+									}
+								}
+								funcObj.Arguments = funcAttributes[:]
+								funcObj.This = atvparse.atv.vm.Get("this")
+								funcAttributes = nil
+								ddoneFunc(funcObj)
+							}
+							args[n] = prcssngFunc
+						}
+						n++
+					} else {
+						break
+					}
+				}
+
 				return DatabaseManager().Query(alias, query, args...)
 			}})
 		}
@@ -1655,6 +1710,78 @@ func captureCurrentPassiveStartEnd(token *activeParseToken, eof bool, curStartIn
 	return lasttknrb, err
 }
 
+type ActiveAltOut struct {
+	out      *IORW
+	outPrint *widgeting.OutPrint
+	altouti  int
+}
+
+func newActiveAltOut() *ActiveAltOut {
+	var atvAltOut = &ActiveAltOut{}
+	return atvAltOut
+}
+
+func (atvAltOut *ActiveAltOut) outPut() *widgeting.OutPrint {
+	if atvAltOut.outPrint == nil {
+		atvAltOut.outPrint = widgeting.NewOutPrint(func(a ...interface{}) {
+			if atvAltOut.out == nil {
+				atvAltOut.out, _ = NewIORW()
+			}
+			atvAltOut.out.Print(a...)
+		}, func(a ...interface{}) {
+			if atvAltOut.out == nil {
+				atvAltOut.out, _ = NewIORW()
+			}
+			atvAltOut.out.Println(a...)
+		})
+	}
+	return atvAltOut.outPrint
+}
+
+func (atvAltOut *ActiveAltOut) Print(a ...interface{}) {
+	atvAltOut.outPut().Print(a...)
+}
+
+func (atvAltOut *ActiveAltOut) Println(a ...interface{}) {
+	atvAltOut.outPut().Println(a...)
+}
+
+func (altOut *ActiveAltOut) Read(p []byte) (n int, err error) {
+	if altOut.out == nil {
+		err = io.EOF
+	} else {
+		n, err = altOut.out.Read(p)
+	}
+	return
+}
+
+func (altOut *ActiveAltOut) Write(p []byte) (n int, err error) {
+	if altOut.out != nil {
+		n, err = altOut.out.Write(p)
+	}
+	return
+}
+
+func (altOut *ActiveAltOut) Seek(offset int64, whence int) (n int64, err error) {
+	if altOut.out != nil {
+		n, err = altOut.out.Seek(offset, whence)
+	}
+	return
+}
+
+func (atvAltOut *ActiveAltOut) Close() {
+	if atvAltOut.out != nil {
+		atvAltOut.out.Close()
+	}
+	if atvAltOut.outPrint != nil {
+		atvAltOut.outPrint = nil
+	}
+}
+
+func (atvAltOut *ActiveAltOut) IORW() *IORW {
+	return atvAltOut.out
+}
+
 //ActiveProcessor - ActiveProcessor
 type ActiveProcessor struct {
 	vm               *goja.Runtime
@@ -1662,8 +1789,43 @@ type ActiveProcessor struct {
 	w                io.Writer
 	out              *IORW
 	outprint         *widgeting.OutPrint
+	altouts          map[string]*ActiveAltOut
+	altoutnames      []string
 	canCleanupParams bool
 	params           *Parameters
+}
+
+func (atvpros *ActiveProcessor) AlternateOut(name string, create ...bool) (atvaltout *ActiveAltOut) {
+	if len(create) == 1 && create[0] {
+		if atvpros.altouts == nil {
+			atvpros.altouts = map[string]*ActiveAltOut{}
+		}
+		atvaltout = newActiveAltOut()
+		atvpros.altouts[name] = atvaltout
+		atvpros.altoutnames = append(atvpros.altoutnames, name)
+	} else if atvpros.altouts != nil {
+		atvaltout = atvpros.altouts[name]
+	}
+	return
+}
+
+func (atvpros *ActiveProcessor) RemoveAlternateOut(name string) {
+
+}
+
+func (atvpros *ActiveProcessor) clearAlternateOuts() {
+	if len(atvpros.altoutnames) > 0 {
+		for _, name := range atvpros.altoutnames {
+			if atvaltout, atvaltoutok := atvpros.altouts[name]; atvaltoutok {
+				if atvaltout != nil {
+					atvaltout.Close()
+					atvpros.altouts[name] = nil
+				}
+				delete(atvpros.altouts, name)
+			}
+		}
+		atvpros.altoutnames = nil
+	}
 }
 
 //Parameters current active process Parameters container
@@ -1759,6 +1921,10 @@ func (atvpros *ActiveProcessor) cleanupActiveProcessor() {
 			atvpros.params.CleanupParameters()
 		}
 		atvpros.params = nil
+	}
+	if atvpros.altouts != nil {
+		atvpros.clearAlternateOuts()
+		atvpros.altouts = nil
 	}
 }
 
@@ -1885,6 +2051,9 @@ func execCommand(atvpros *ActiveProcessor, path string, atvCmdHndlr ActiveComman
 //path - path that active content can be found
 //retrieveRS - func reference to a implementation base on RetrieveRSFunc definition
 func (atvpros *ActiveProcessor) Process(rs io.ReadSeeker, root string, path string, retrieveRS RetrieveRSFunc, altlbls ...string) (err error) {
+	defer func() {
+		atvpros.clearAlternateOuts()
+	}()
 	if atvcmddefs, atvcmdefsok := activeModuledCommands[path]; atvcmdefsok && atvpros.params.ContainsParameter("COMMAND") {
 		commands := atvpros.params.Parameter("COMMAND")
 		cmdn := 0

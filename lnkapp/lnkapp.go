@@ -9,9 +9,19 @@ import (
 	activeruling "github.com/efjoubert/lnkworks/activeruling"
 	embed "github.com/efjoubert/lnkworks/embed"
 	widgeting "github.com/efjoubert/lnkworks/widgeting"
+	_ "github.com/jackc/pgx/stdlib"
 )
 
 func main() {
+
+	if err := lnksworks.DatabaseManager().RegisterConnection("modulation", "pgx", "user=lnksworks password=lnksworks56579757 host=localhost port=5432 database=lnksworks sslmode=disable"); err != nil {
+		fmt.Println(err)
+	}
+
+	if err := lnksworks.DatabaseManager().RegisterConnection("activedbtest", "activedb", ""); err != nil {
+		fmt.Println(err)
+	}
+
 	i := 0
 	for i < 1 {
 		schname := fmt.Sprintf("SCHDL%d", i)
