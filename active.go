@@ -854,7 +854,8 @@ func evalStartActiveRSEntryPoint(atvparse *activeParser, atvRSAPCStart *activeRS
 	if err = atvRSAPCCoding(false, atvRSAPCStart, atvparse, w); err == nil {
 		var s = atvparse.code()
 		if s != "" {
-			if err = atvparse.atv.evalCode(func() string {
+			fmt.Println(s)
+			err = atvparse.atv.evalCode(func() string {
 				return s
 			}, map[string]interface{}{"$elemprops": func() *Parameters {
 				if len(atvparse.atvElemPropsLevelled) > 0 {
@@ -920,9 +921,7 @@ func evalStartActiveRSEntryPoint(atvparse *activeParser, atvRSAPCStart *activeRS
 				}
 
 				return DatabaseManager().Query(alias, query, args...)
-			}}); err != nil {
-				fmt.Println(s)
-			}
+			}})
 		}
 	}
 
