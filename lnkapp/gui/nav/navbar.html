@@ -1,0 +1,7 @@
+<@ var navbarid=$elemprops().Parameter("nav-id"); var navbarpos=$elemprops().Parameter("nav-align"); if (navbarpos!="") {navbarpos=",position:'"+navbarpos+"'";} @><nav id="<@$out.Print(navbarid);@>"><ul><:navbar/></ul></nav>
+<script type="text/javascript">var $<@$out.Print(navbarid);@>=$("#<@$out.Print(navbarid);@>").hcOffcanvasNav({maxWidth: false,customToggle:$(".toggle-nav")<@$out.Print(navbarpos);@>});
+$<@$out.Print(navbarid);@>.update(true);
+$("#<@$out.Print(navbarid);@> .nav-action").on("click",function() {
+    alert($(this).html());
+});
+</script>

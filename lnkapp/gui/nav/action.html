@@ -1,0 +1,9 @@
+<@ var navactionid=$elemprops().Parameter("action-id"); var postevent=$elemprops().Parameter("post-event");  @><:action/><@ if (navactionid!="") {
+    if (postevent=="") {postevent="click";}
+    @><script>var navelem=$("#<@$out.Print(navactionid);@>");
+      navelem.on("click",function(e){
+          postByElem("#<@$out.Print(navactionid);@>");
+          //alert($(this).html());
+      }); 
+     </script><@
+} @>

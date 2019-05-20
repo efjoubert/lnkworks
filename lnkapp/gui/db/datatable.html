@@ -1,0 +1,49 @@
+<@
+var dbparams=$elemprops();
+
+var sqlquery=dbparams.Parameter("sql-query"); var dbalias=dbparams.Parameter("db-alias"); 
+var datasetid=dbparams.Parameter("db-setid");
+if (sqlquery!="" && dbalias!="") {
+     $dbquery(dbalias,sqlquery,function(dbquery,cnames,ctypes){
+            @><tr><@
+            cnames.forEach(function(cname,i){
+                @><th><@ $out.Print(cname); @></th><@
+            });
+            @></tr><@
+        },function(dbquery,data,first,last){
+            @><tr><@
+                data.forEach(function(dta,i){
+                    @><td><@ $out.Print(dta); @></td><@
+                });
+                @></tr><@
+        },function(dbquery,stage,cols){
+            $out.Println("<!--",stage,"-->")
+            if (stage==1) {
+                if (datasetid=="") {
+                    @><table><@
+                } else {
+                    @><table id="<@$out.Print(datasetid);@>"><@
+                }
+            } else if (stage==2) {
+                @><thead><@
+            } else if (stage==3){
+                @></thead><@
+            } else if (stage==4) {
+                @><tbody><@
+            } else if (stage==5){
+                @></tbody><@
+                @><tfoot><tr><@
+                cols.forEach(function(col){
+                    @><th><@ $out.Print(col);@></th><@
+                });
+                @></tr></tfoot><@
+            } else if (stage==6){
+                if (datasetid=="") {
+                @></table><@
+                } else {
+                    @></table><script type="text/javascript">$('#<@$out.Print(datasetid);@>').DataTable();</script><@
+                }
+            }
+        }).Process();
+    }
+@>

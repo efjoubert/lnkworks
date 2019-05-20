@@ -1,0 +1,7 @@
+<li class="<@ 
+    if ($elemprops().StringParameter("nav-type")=="nav-action") { 
+        $out.Print($elemprops().StringParameter("nav-type")); 
+    } @><@$out.Print($elemprops().StringParameter("class"));@>"><a href="#"><@$out.Print($elemprops().Parameter("title"));@></a><@ 
+    if ($elemprops().StringParameter("nav-type")=="nav-section") { 
+        @><ul><:nav/></ul><@ 
+    } @></li>

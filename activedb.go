@@ -2,7 +2,6 @@ package lnksworks
 
 import (
 	"context"
-	"database/sql"
 	"database/sql/driver"
 )
 
@@ -80,5 +79,5 @@ func newActiveDBDriver(a ...interface{}) (atvdbdrvr *ActiveDBDriver) {
 }
 
 func init() {
-	sql.Register("activedb", newActiveDBDriver())
+	//sql.Register("activedb", newActiveDBDriver())
 }

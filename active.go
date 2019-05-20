@@ -854,8 +854,7 @@ func evalStartActiveRSEntryPoint(atvparse *activeParser, atvRSAPCStart *activeRS
 	if err = atvRSAPCCoding(false, atvRSAPCStart, atvparse, w); err == nil {
 		var s = atvparse.code()
 		if s != "" {
-			fmt.Println(s)
-			err = atvparse.atv.evalCode(func() string {
+			if err = atvparse.atv.evalCode(func() string {
 				return s
 			}, map[string]interface{}{"$elemprops": func() *Parameters {
 				if len(atvparse.atvElemPropsLevelled) > 0 {
@@ -921,7 +920,10 @@ func evalStartActiveRSEntryPoint(atvparse *activeParser, atvRSAPCStart *activeRS
 				}
 
 				return DatabaseManager().Query(alias, query, args...)
-			}})
+			}}); err != nil {
+				fmt.Fprintln(atvparse.atv.w, "ActiveParseError:", err.Error())
+				fmt.Fprintln(atvparse.atv.w, s)
+			}
 		}
 	}
 
@@ -1427,238 +1429,295 @@ func newActiveElemProps() *Parameters {
 	return NewParameters()
 }
 
+const validElemChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-:"
+const validElemPropChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-"
+
 func validatePassiveCapturedIO(token *activeParseToken, lbls []string) (valid bool, single bool, comlexStart bool, complexEnd bool, elemName string, elemPath string, elemExt string, elemProps *Parameters, err error) {
 	if actualSize := (token.psvCapturedIO.Size() - int64(len(lbls[0:len(lbls[0])-1])+len(lbls[1][1:]))); actualSize >= 1 {
 		if valid = (actualSize == 1 && token.psvCapturedIO.String() == "/"); !valid {
 			var seekStart = int64(len(lbls[0 : len(lbls[0])-1]))
 			seekStart, _ = token.psvCapturedIO.Seek(seekStart, 0)
-			var actualSizei = int64(0)
+			//var actualSizei = int64(0)
 			var foundFSlash = false
 			var validElemName = false
 			var rootElemPath = ""
 
-			for actualSizei <= actualSize && !validElemName {
-				if r, _, _ := token.psvCapturedIO.ReadRune(); r > 0 {
-					actualSizei += int64(len(string(r)))
-					if strings.TrimSpace(string(r)) != "" {
-						if r == 47 {
-							if !foundFSlash {
-								foundFSlash = true
-								if token.psvUnvalidatedIO != nil && !token.psvUnvalidatedIO.Empty() {
-									single = true
-								} else {
-									complexEnd = true
-								}
-							} else {
-								break
-							}
-						} else {
-							token.passiveUnvalidatedIO().WriteRune(r)
-							if actualSizei < actualSize {
-								continue
-							}
+			var prevs = ""
+			var validPropName = false
+			var foundPropAssign = false
+			var elemPropName = ""
+			//var doneWithProp = false
+
+			var valStage = 0
+
+			const readElemName = 0
+			const readPropName = 1
+			const readPropVal = 2
+			const doneReadingElement = 3
+
+			//var validPropValue = false
+			var elemValTxtPar = ""
+			var noTextVal = false
+			var propVal = ""
+			var lbli = 1
+
+			prevs = ""
+			var chechValidName = func() bool {
+				if elemName != "" && regexptagstart.MatchString(elemName) {
+					if strings.HasPrefix(elemName, ".:") {
+						if elemExt = filepath.Ext(elemName[2:]); elemExt != "" {
+							elemName = elemName[0 : len(elemName)-len(elemExt)]
+						} else if elemExt == "" {
+							elemExt = token.rspathext
+						}
+					} else {
+						if elemExt = filepath.Ext(elemName); elemExt != "" {
+							elemName = elemName[0 : len(elemName)-len(elemExt)]
+						} else if elemExt == "" {
+							elemExt = token.rspathext
 						}
 					}
-					if strings.TrimSpace(string(r)) == "" || actualSizei == actualSize {
-						if token.psvUnvalidatedIO.MatchExp(regexptagstart) {
-							elemName = token.psvUnvalidatedIO.String()
-							if strings.HasPrefix(elemName, ".:") {
-								if elemExt = filepath.Ext(elemName[2:]); elemExt != "" {
-									elemName = elemName[0 : len(elemName)-len(elemExt)]
-								} else if elemExt == "" {
-									elemExt = token.rspathext
-								}
-							} else {
-								if elemExt = filepath.Ext(elemName); elemExt != "" {
-									elemName = elemName[0 : len(elemName)-len(elemExt)]
-								} else if elemExt == "" {
-									elemExt = token.rspathext
-								}
+					if strings.HasPrefix(elemName, ".:") {
+						elemPath = strings.ReplaceAll(elemName[1:], ":", "/") + elemExt
+					} else if strings.HasPrefix(elemName, ":") {
+						elemPath = strings.ReplaceAll(elemName, ":", "/") + elemExt
+					} else {
+						elemPath = strings.ReplaceAll(elemName, ":", "/") + elemExt
+					}
+					validElemName = true
+					return true
+				}
+				return false
+			}
+			var checkValidPropName = func() bool {
+				if elemPropName != "" && regexprop.MatchString(elemPropName) {
+					validPropName = true
+					return true
+				}
+				return false
+			}
+
+			var captureProperty = func() bool {
+				if elemProps == nil {
+					elemProps = NewParameters()
+				}
+				if elemValTxtPar != "" {
+					if elemValTxtPar == "@" {
+						elemProps.SetParameter(elemPropName, false, "@@"+propVal+"@@")
+					} else {
+						elemProps.SetParameter(elemPropName, false, propVal)
+					}
+				} else if propVal == "true" || propVal == "false" {
+					elemProps.SetParameter(elemPropName, false, propVal)
+				} else if regexpropvalnumberexp.MatchString(propVal) {
+					elemProps.SetParameter(elemPropName, false, propVal)
+				} else {
+					return false
+				}
+				elemValTxtPar = ""
+				prevs = ""
+				elemPropName = ""
+				propVal = ""
+				valStage = readPropName
+				foundPropAssign = false
+				validPropName = false
+				noTextVal = false
+				return true
+			}
+
+			var valStageFunc func(s string, r rune) (doneStaging bool)
+			valStageFunc = func(s string, r rune) (doneStaging bool) {
+				if valStage == readElemName {
+					//FIND VALID ELEMENTNAME
+					if strings.TrimSpace(s) != "" {
+						if s == "/" {
+							if foundFSlash {
+								valStage = -1
+								return true
 							}
-							if strings.HasPrefix(elemName, ".:") {
-								elemPath = strings.ReplaceAll(elemName[1:], ":", "/") + elemExt
-							} else if strings.HasPrefix(elemName, ":") {
-								elemPath = strings.ReplaceAll(elemName, ":", "/") + elemExt
-							} else {
-								elemPath = strings.ReplaceAll(elemName, ":", "/") + elemExt
+							foundFSlash = true
+							if chechValidName() {
+								single = true
+								complexEnd = false
+								valStage = doneReadingElement
+								return
+							} else if elemName != "" {
+								valStage = -1
+								return true
 							}
-							validElemName = true
-							valid = validElemName
-							token.psvUnvalidatedIO.Close()
-							break
+							complexEnd = true
+							return
+						} else if !validElemName && strings.ContainsRune(validElemChars, r) {
+							elemName += s
+							return
 						} else {
-							break
+							valStage = -1
+							return true
 						}
+					} else if !validElemName {
+						if chechValidName() {
+							valStage = readPropName
+							return
+						}
+					} else {
+						fmt.Println("CHECK THIS")
+					}
+					return
+				} else if valStage == readPropName {
+					//FIND ELEM PROPERTY
+					if strings.TrimSpace(s) != "" {
+						if s == "/" {
+							if foundFSlash {
+								valStage = -1
+								return true
+							}
+							foundFSlash = true
+							single = validElemName
+							comlexStart = !validElemName
+							valStage = doneReadingElement
+							return
+						} else if s == token.lbls[1][lbli:lbli+1] {
+							valStage = doneReadingElement
+							return valStageFunc(s, r)
+						} else if s == "=" {
+							if !validPropName && checkValidPropName() {
+								foundPropAssign = true
+								valStage = readPropVal
+								return
+							} else if validPropName {
+								foundPropAssign = true
+								valStage = readPropVal
+								return
+							}
+							valStage = -1
+							return true
+						} else if !validPropName && strings.ContainsRune(validElemPropChars, r) {
+							elemPropName += s
+							return
+						}
+						valStage = -1
+						return true
+					}
+					if !validPropName {
+						if checkValidPropName() {
+							valStage = readPropVal
+							return false
+						}
+						if elemPropName != "" {
+							valStage = -1
+							return true
+						}
+						return
+					}
+					return
+				} else if valStage == readPropVal {
+					//FIND ELEM PROPVAL
+					if elemValTxtPar != "" {
+						if s == elemValTxtPar {
+							if prevs == elemValTxtPar {
+								propVal += s
+							} else {
+								if captureProperty() {
+									return
+								} else {
+									valStage = -1
+									return true
+								}
+							}
+						} else {
+							propVal += s
+							prevs = s
+						}
+					} else if strings.TrimSpace(s) != "" {
+						if !noTextVal && elemValTxtPar == "" || s == "\"" || s == "'" || s == "@" {
+							elemValTxtPar = s
+							return
+						} else if strings.ContainsRune(validElemPropChars, r) {
+							if !noTextVal {
+								noTextVal = true
+							}
+							propVal += s
+						} else if s == "/" {
+							if foundFSlash {
+								valStage = -1
+								return true
+							}
+							foundFSlash = true
+							single = true
+							comlexStart = false
+							if captureProperty() {
+								valStage = doneReadingElement
+								return
+							} else {
+								valStage = -1
+								return true
+							}
+						}
+					} else {
+						if noTextVal && propVal != "" {
+							if captureProperty() {
+								return
+							} else {
+								valStage = -1
+								return true
+							}
+						} else {
+							return
+						}
+					}
+				} else if valStage == doneReadingElement {
+					if s == token.lbls[1][lbli:lbli+1] {
+						lbli++
+						if lbli == len(token.lbls[1]) {
+							return true
+						} else {
+							valStage = -1
+							return true
+						}
+					} else {
+						valStage = -1
+						return true
+					}
+				}
+				return
+			}
+
+			for {
+				if r, _, _ := token.psvCapturedIO.ReadRune(); r > 0 {
+					if valStageFunc(string(r), r) {
+						break
 					}
 				} else {
 					break
 				}
 			}
 
-			if validElemName && actualSizei < actualSize {
-				for actualSizei <= actualSize && validElemName {
-					var s = ""
-					var prevs = ""
-					var validPropName = false
-					var foundPropAssign = false
-					var elemPropName = ""
-					var doneWithProp = false
-					for actualSizei <= actualSize && !doneWithProp && !validPropName {
-						if r, _, _ := token.psvCapturedIO.ReadRune(); r > 0 {
-							s = string(r)
-							actualSizei += int64(len(s))
-							if s = strings.TrimSpace(s); s != "" {
-								if s != "=" {
-									if s == "/" {
-										if !foundFSlash {
-											foundFSlash = true
-											single = true
-											if actualSizei != actualSize {
-												validElemName = false
-												break
-											} else {
-												doneWithProp = true
-												break
-											}
-										} else {
-											validElemName = false
-										}
-									} else if s == token.lbls[1][1:] {
-										doneWithProp = true
-										break
-									} else {
-										token.passiveUnvalidatedIO().WriteRune(r)
-									}
-									continue
-								} else {
-									foundPropAssign = true
-								}
+			if valid = valStage == doneReadingElement && lbli == len(token.lbls[1]); valid {
+				comlexStart = !(single || complexEnd)
+				if validElemName {
+					if !(single && ((":"+token.rsrootname) == elemName || (".:"+token.rsrootname) == elemName) && elemExt == token.rspathext) {
+						rootElemPath = elemPath
+						if strings.HasPrefix(rootElemPath, "/") {
+							if strings.HasSuffix(token.rsroot, "/") {
+								rootElemPath = rootElemPath[1:]
 							}
-							if s != "" {
-								if !token.psvUnvalidatedIO.Empty() && token.psvUnvalidatedIO.MatchExp(regexprop) {
-									elemPropName = token.psvUnvalidatedIO.String()
-									token.psvUnvalidatedIO.Close()
-									validPropName = true
-								} else {
-									break
-								}
-							} else if !doneWithProp {
-								continue
-							}
-						} else {
-							doneWithProp = actualSizei == actualSize
-							break
+							rootElemPath = token.rsroot + rootElemPath
 						}
-					}
-
-					if validPropName && elemPropName != "" {
-						for actualSizei <= actualSize && validPropName && !foundPropAssign {
-							if r, _, _ := token.psvCapturedIO.ReadRune(); r > 0 {
-								s = string(r)
-								actualSizei += int64(len(s))
-								if s = strings.TrimSpace(s); s != "" && s == "=" {
-									foundPropAssign = true
-								} else {
-									break
-								}
-							}
-						}
-
-						if !doneWithProp && foundPropAssign {
-							var validPropValue = false
-							var elemValTxtPar = ""
-							var noTextVal = false
-							var propVal = ""
-							prevs = ""
-							for actualSizei <= actualSize && validPropName && foundPropAssign && !validPropValue {
-								if r, _, _ := token.psvCapturedIO.ReadRune(); r > 0 {
-									s = string(r)
-									actualSizei += int64(len(s))
-									if s = strings.TrimSpace(s); s != "" && elemValTxtPar == "" {
-										if !noTextVal && elemValTxtPar == "" && (s == "\"" || s == "'" || s == "@") {
-											elemValTxtPar = s
-										} else {
-											noTextVal = true
-											token.psvUnvalidatedIO.WriteRune(r)
-										}
-										if noTextVal {
-											if !token.psvUnvalidatedIO.Empty() && token.psvUnvalidatedIO.MatchExp(regexpropvalnumberexp) {
-												validPropValue = true
-												propVal = token.psvUnvalidatedIO.String()
-											} else if truefalse := token.psvUnvalidatedIO.String(); truefalse == "true" || truefalse == "false" {
-												validPropValue = true
-												propVal = truefalse
-											}
-										}
-									} else if !noTextVal && elemValTxtPar != "" {
-										if s == elemValTxtPar {
-											if s == prevs {
-												token.psvUnvalidatedIO.WriteRune(r)
-											} else {
-												validPropValue = true
-												propVal = token.psvUnvalidatedIO.String()
-												if elemValTxtPar == "@" {
-													propVal = strings.TrimSpace(propVal)
-													if len(propVal) > 2 && propVal[0:1] == "=" && propVal[len(propVal)-1:len(propVal)] == ";" {
-														propVal = propVal[1 : len(propVal)-1]
-													}
-													propVal = "@@" + strings.TrimSpace(propVal) + "@@"
-												}
-												break
-											}
-										} else {
-											token.psvUnvalidatedIO.WriteRune(r)
-										}
-									}
-									prevs = s
-								}
-							}
-							if !validPropValue {
-								validElemName = false
-								break
-							} else {
-								if elemProps == nil {
-									elemProps = newActiveElemProps()
-								}
-								elemProps.SetParameter(elemPropName, false, propVal)
-								token.psvUnvalidatedIO.Close()
+						if err = token.parse.setRSByPath(rootElemPath); err == nil {
+							if token.parse.atvrs(rootElemPath) == nil {
+								validElemName = true
 							}
 						} else {
 							validElemName = false
-							break
 						}
-					} else {
-						validElemName = doneWithProp
-						break
 					}
 				}
-				valid = validElemName
 			}
 
 			if token.psvUnvalidatedIO != nil && !token.psvUnvalidatedIO.Empty() {
 				token.psvUnvalidatedIO.Close()
 			}
-			if validElemName {
-				if !(single && ((":"+token.rsrootname) == elemName || (".:"+token.rsrootname) == elemName) && elemExt == token.rspathext) {
-					rootElemPath = elemPath
-					if strings.HasPrefix(rootElemPath, "/") {
-						if strings.HasSuffix(token.rsroot, "/") {
-							rootElemPath = rootElemPath[1:]
-						}
-						rootElemPath = token.rsroot + rootElemPath
-					}
-					if err = token.parse.setRSByPath(rootElemPath); err == nil {
-						if token.parse.atvrs(rootElemPath) != nil {
-							token.psvUnvalidatedIO.Close()
-							//	validElemName = true
-						} else {
-							validElemName = false
-						}
-					} else {
-						validElemName = false
-					}
-				}
-			}
+
 		}
 	}
 	if valid {

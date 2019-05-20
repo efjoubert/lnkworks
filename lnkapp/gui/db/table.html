@@ -1,0 +1,18 @@
+<@ var dbqueryfilter=$elemprops().Parameter("db-queryfilter"); var dataset=$dbquery($elemprops().Parameter("db-alias"),$elemprops().Parameter("db-query")+(dbqueryfilter==""?dbqueryfilter:(" where "+dbqueryfilter)));
+var datasetid=$elemprops().Parameter("db-setid");
+@><table id="<@$out.Print(datasetid);@>" class="table table-striped table-bordered" style="width:100%"><@ 
+    var columns=dataset.MetaData().Columns();
+    @><thead><tr><@columns.forEach(function(colname,coli){
+        @><th><@$out.Print(colname);@></th><@
+    });@></tr></thead><tbody><@
+    while(dataset.Next()) {
+        @><tr><@dataset.Data().forEach(function(coldata,coli){
+            @><td><@$out.Print(coldata);@></td><@
+        });@></tr><@
+    }
+    @></tbody><tfoot><tr><@columns.forEach(function(colname,coli){
+        @><th><@$out.Print(colname);@></th><@
+    });@></tr></tfoot><@
+    @></table><script type="text/javascript">$(document).ready(function() {
+        $('#<@$out.Print(datasetid);@>').DataTable();
+    });</script>

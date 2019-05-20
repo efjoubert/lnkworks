@@ -60,6 +60,8 @@ func main() {
 		"jquery.js", embed.JQueryJS(),
 		"webactions.js", embed.WebActionsJS(true),
 		"block-ui.js", embed.BlockUiJS(),
+		"hc-offcanvas-nav.css", embed.HCOffCanvasNavCSS(),
+		"hc-offcanvas-nav.js", embed.HCOffCanvasNavJS(),
 		"jquery-ui.js", embed.JQueryUiJS(),
 		"jquery-ui.css", embed.JQueryUiCSS(),
 		"goldenlayout-dark.css", embed.GoldenLayoutBaseCSS("dark"),
