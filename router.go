@@ -159,8 +159,7 @@ func loadParametersFromHTTPRequest(params *Parameters, r *http.Request) {
 					pfilei = nil
 				}
 			}
-		}
-		if r.Form != nil {
+		} else if r.Form != nil {
 			for pname, pvalue := range r.Form {
 				params.SetParameter(pname, false, pvalue...)
 			}
