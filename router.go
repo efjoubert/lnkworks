@@ -165,11 +165,6 @@ func loadParametersFromHTTPRequest(params *Parameters, r *http.Request) {
 			}
 		}
 	} else if err := r.ParseForm(); err == nil {
-		/*if r.PostForm != nil {
-			for pname, pvalue := range r.PostForm {
-				params.SetParameter(pname, false, pvalue...)
-			}
-		}*/
 		if r.Form != nil {
 			for pname, pvalue := range r.Form {
 				params.SetParameter(pname, false, pvalue...)
