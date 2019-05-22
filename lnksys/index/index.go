@@ -4,8 +4,8 @@ import (
 	"strings"
 
 	lnksworks "../../../lnkworks"
-	"github.com/efjoubert/lnkworks/widgeting"
-	//widgeting "../../../lnkworks/widgeting"
+	//"github.com/efjoubert/lnkworks/widgeting"
+	widgeting "../../../lnkworks/widgeting"
 )
 
 const indexhtml = `<!DOCTYPE html>

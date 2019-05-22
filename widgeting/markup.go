@@ -236,7 +236,7 @@ func stripPropsAndFunctions(a ...interface{}) (props []string, content []string,
 		}
 	}
 
-	return nil, props, funcs, startMarkupElemFunc, endMarkupElemFunc
+	return props, content, funcs, startMarkupElemFunc, endMarkupElemFunc
 }
 
 //StartMarkupElementFunction definition
