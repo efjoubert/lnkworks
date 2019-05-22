@@ -117,7 +117,7 @@ func script(out *OutPrint, a ...interface{}) {
 		if len(a) == 0 {
 			a = append(a, "type=text/javascript")
 		} else {
-			na := make([]interface{}, len(a))
+			na := make([]interface{}, len(a)+1)
 			na[0] = "type=text/javascript"
 			copy(na[1:], a)
 			a = nil

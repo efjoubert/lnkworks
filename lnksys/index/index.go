@@ -4,8 +4,8 @@ import (
 	"strings"
 
 	lnksworks "../../../lnkworks"
-	//"github.com/efjoubert/lnkworks/widgeting"
-	widgeting "../../../lnkworks/widgeting"
+	//widgeting "../../../lnkworks/widgeting"
+	"github.com/efjoubert/lnkworks/widgeting"
 )
 
 const indexhtml = `<!DOCTYPE html>
@@ -40,8 +40,8 @@ func NavBar(out *widgeting.OutPrint, navbarid string, a ...interface{}) {
 			"aria-expanded=false", "aria-label=", func(out *widgeting.OutPrint) {
 				out.ELEM("span", "class=navbar-toggle-icon")
 			})
-	}, func(out *widgeting.OutPrint, a ...interface{}) {
-		out.ELEM("div", "class=collapse navbar-collapse", func(out *widgeting.OutPrint, a ...interface{}) {
+	}, func(out *widgeting.OutPrint) {
+		out.ELEM("div", "class=collapse navbar-collapse", func(out *widgeting.OutPrint) {
 			out.ELEM("ul", "class=navbar-nav mr-auto", navbara)
 		})
 	}, func(out *widgeting.OutPrint, tag string) {
