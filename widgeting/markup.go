@@ -154,7 +154,6 @@ func ElemProperties(out *OutPrint, props ...string) {
 				pname = p[:strings.Index(p, "=")]
 				pval = p[strings.Index(p, "=")+1:]
 				propsmap[pname] = append(propsmap[pname], pval)
-				out.Print(" ", p[:strings.Index(p, "=")], "=", "\""+p[strings.Index(p, "=")+1:]+"\"")
 			}
 		}
 		if len(propsmap) > 0 {
