@@ -144,10 +144,23 @@ func (out *OutPrint) StartELEM(tag string, props ...string) {
 
 //ElemProperties function
 func ElemProperties(out *OutPrint, props ...string) {
+	var propsmap = map[string][]string{}
+	var pname = ""
+	var pval = ""
+
 	if out != nil && (out.printCmd != nil) && len(props) > 0 {
 		for _, p := range props {
 			if p != "" && strings.Index(p, "=") > -1 {
+				pname = p[:strings.Index(p, "=")]
+				pval = p[strings.Index(p, "=")+1:]
+				propsmap[pname] = append(propsmap[pname], pval)
 				out.Print(" ", p[:strings.Index(p, "=")], "=", "\""+p[strings.Index(p, "=")+1:]+"\"")
+			}
+		}
+		if len(propsmap) > 0 {
+			var pvals []string
+			for pname, pvals = range propsmap {
+				out.Print(" ", pname, "=", "\"", strings.Join(pvals, " "), "\"")
 			}
 		}
 	}
@@ -171,18 +184,30 @@ func (out *OutPrint) EndELEM(tag string) {
 //MarkupFunction definition
 type MarkupFunction = func(*OutPrint)
 
-func stripPropsAndFunctions(a ...interface{}) (props []string, funcs []MarkupFunction, startMarkupElemFunc StartMarkupElementFunction, endMarkupElemFunc EndMarkupElementFunction) {
+func stripPropsAndFunctions(a ...interface{}) (props []string, content []string, funcs []MarkupFunction, startMarkupElemFunc StartMarkupElementFunction, endMarkupElemFunc EndMarkupElementFunction) {
 	if len(a) > 0 {
-		for _, d := range a {
+		var n = 0
+		var d interface{}
+
+		for n < len(a) {
+			d = a[n]
+			n++
 			if strtElemFunc, startElemFuncOk := d.(StartMarkupElementFunction); startElemFuncOk && startMarkupElemFunc == nil {
 				startMarkupElemFunc = strtElemFunc
 			} else if endElemFunc, endElemFuncOk := d.(EndMarkupElementFunction); endElemFuncOk && endMarkupElemFunc == nil {
 				endMarkupElemFunc = endElemFunc
 			} else if p, pok := d.(string); pok {
-				if props == nil {
-					props = []string{}
+				if strings.Index(p, "=") > -1 {
+					if props == nil {
+						props = []string{}
+					}
+					props = append(props, p)
+				} else {
+					if content == nil {
+						content = []string{}
+					}
+					content = append(content, p)
 				}
-				props = append(props, p)
 			} else if f, fok := d.(MarkupFunction); fok {
 				if funcs == nil {
 					funcs = []MarkupFunction{}
@@ -200,11 +225,18 @@ func stripPropsAndFunctions(a ...interface{}) (props []string, funcs []MarkupFun
 				funcs = append(funcs, func(out *OutPrint) {
 					out.Print(r)
 				})
+			} else if ai, aiok := d.([]interface{}); aiok && len(ai) > 0 {
+				if n == len(a) {
+					a = ai[:]
+				} else {
+					a = append(ai, a[n:])
+				}
+				n = 0
 			}
 		}
 	}
 
-	return props, funcs, startMarkupElemFunc, endMarkupElemFunc
+	return nil, props, funcs, startMarkupElemFunc, endMarkupElemFunc
 }
 
 //StartMarkupElementFunction definition
@@ -214,7 +246,7 @@ type StartMarkupElementFunction = func(out *OutPrint, tag string, props ...strin
 type EndMarkupElementFunction = func(out *OutPrint, tag string)
 
 func Elem(out *OutPrint, tag string, a ...interface{}) {
-	props, funcs, strtElemFunc, endElemFunc := stripPropsAndFunctions(a...)
+	props, content, funcs, strtElemFunc, endElemFunc := stripPropsAndFunctions(a...)
 	if strtElemFunc == nil {
 		strtElemFunc = StartElem
 	}
@@ -222,6 +254,12 @@ func Elem(out *OutPrint, tag string, a ...interface{}) {
 		endElemFunc = EndElem
 	}
 	strtElemFunc(out, tag, props...)
+
+	if content != nil && len(content) > 0 {
+		for _, c := range content {
+			out.Print(c)
+		}
+	}
 	if len(funcs) > 0 {
 		for _, f := range funcs {
 			f(out)

@@ -30,7 +30,7 @@ const indexhtml = `<!DOCTYPE html>
 
 func NavBar(out *widgeting.OutPrint, navbarid string, a ...interface{}) {
 	var navbara = a
-	out.ELEM("nav", "class=navbar navbar-expand-lg navbar-light bg-light", "id="+navbarid, func(out *widgeting.OutPrint, tag string, props []string) {
+	out.ELEM("nav", "class=navbar navbar-expand-lg navbar-light bg-light", "id="+navbarid, func(out *widgeting.OutPrint, tag string, props ...string) {
 		out.StartELEM(tag, props...)
 		out.ELEM("button",
 			"class=navbar-toggler",
