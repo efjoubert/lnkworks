@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	lnksworks "../../lnkworks"
+	embed "../../lnkworks/embed"
 	_ "./index"
-	embed "github.com/efjoubert/lnkworks/embed"
 	_ "github.com/jackc/pgx/stdlib"
 )
 
@@ -35,10 +35,10 @@ func main() {
 		"material-icons.woff2", embed.MaterialIconsWoff2(),
 		//"mdb.css", embed.MdbCSS(),
 		"jquery.js", embed.JQueryJS(),
-		"webactions.js", embed.WebActionsJS(true),
+		"webactions.js", embed.WebActionsJS(false),
 		"block-ui.js", embed.BlockUiJS(),
-		"hc-offcanvas-nav.css", embed.HCOffCanvasNavCSS(),
-		"hc-offcanvas-nav.js", embed.HCOffCanvasNavJS(),
+		"bootnavbar.css", embed.BootNavbarCSS(),
+		"bootnavbar.js", embed.BootNavbarJS(),
 		//"jquery-ui.js", embed.JQueryUiJS(),
 		//"jquery-ui.css", embed.JQueryUiCSS(),
 		"goldenlayout-dark.css", embed.GoldenLayoutBaseCSS("dark"),

@@ -39,7 +39,7 @@ func (svr *Server) processServes() {
 
 //Listen start listening for connection(s)
 func (svr *Server) Listen() (err error) {
-	svr.svr = &http.Server{Addr: svr.port, Handler: svr, ReadHeaderTimeout: 3 * 1024 * time.Millisecond, ReadTimeout: 3 * 1024 * time.Millisecond, WriteTimeout: 1024 * time.Millisecond}
+	svr.svr = &http.Server{Addr: svr.port, Handler: svr, ReadHeaderTimeout: 3 * 1024 * time.Millisecond, ReadTimeout: 30 * 1024 * time.Millisecond, WriteTimeout: 60 * 1024 * time.Millisecond}
 	if svr.istls {
 		go svr.processServes()
 		err = svr.svr.ListenAndServeTLS(svr.certFile, svr.keyFile)
