@@ -3,9 +3,10 @@ package index
 import (
 	"strings"
 
-	lnksworks "../../../lnkworks"
+	lnksworks "github.com/efjoubert/lnkworks"
+	widgeting "github.com/efjoubert/lnkworks/widgeting"
 	//widgeting "../../../lnkworks/widgeting"
-	"github.com/efjoubert/lnkworks/widgeting"
+	//"github.com/efjoubert/lnkworks/widgeting"
 )
 
 const indexhtml = `<!DOCTYPE html>
