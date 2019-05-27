@@ -3,7 +3,7 @@ package index
 import (
 	"strings"
 
-	lnksworks "github.com/efjoubert/lnkworks"
+	lnksworks "../../../lnkworks"
 	widgeting "github.com/efjoubert/lnkworks/widgeting"
 	//widgeting "../../../lnkworks/widgeting"
 	//"github.com/efjoubert/lnkworks/widgeting"
