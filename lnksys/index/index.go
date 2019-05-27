@@ -23,108 +23,25 @@ const indexhtml = `<!DOCTYPE html>
 <body>    
 	<div id="mainindex"></div>
 	<div id="mainsection"></div>
+	<div class="samplesection"></div>
 	<script>postForm({"target":"#mainindex","url_ref":"index.html?command=index"});</script>
 </body>
 </html>
 `
 
-func NavBar(out *widgeting.OutPrint, navbarid string, a ...interface{}) {
-	var navbara = a
-	out.ELEM("nav", "class=navbar navbar-expand-lg navbar-light bg-light", "id="+navbarid, func(out *widgeting.OutPrint, tag string, props ...string) {
-		out.StartELEM(tag, props...)
-		out.ELEM("button",
-			"class=navbar-toggler",
-			"type=button",
-			"data-toggle=#"+navbarid+"content",
-			"aria-controls=#"+navbarid+"content",
-			"aria-expanded=false", "aria-label=", func(out *widgeting.OutPrint) {
-				out.ELEM("span", "class=navbar-toggle-icon")
-			})
-	}, func(out *widgeting.OutPrint) {
-		out.ELEM("div", "class=collapse navbar-collapse", func(out *widgeting.OutPrint) {
-			out.ELEM("ul", "class=navbar-nav mr-auto", navbara)
-		})
-	}, func(out *widgeting.OutPrint, tag string) {
-
-		out.EndELEM(tag)
-		out.SCRIPT(func(out *widgeting.OutPrint) {
-			out.Print(`$("#` + navbarid + `").bootnavbar();$("#` + navbarid + ` .webaction").on("click",function(){
-				alert($(this).html());
-			});`)
-		})
-	})
-}
-
-func NavWebAction(out *widgeting.OutPrint, a ...interface{}) {
-
-}
-
 func Index(atvpros *lnksworks.ActiveProcessor, path string, a ...string) (err error) {
 	var out = atvpros.Out()
-
-	NavBar(out, "thenavbar")
-
-	/*out.Print(`<nav class="navbar navbar-expand-lg navbar-light bg-light" id="main_navbar">
-		<a class="navbar-brand" href="#">Navbar</a>
-		<button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent"
-			aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-			<span class="navbar-toggler-icon"></span>
-		</button>
-
-		<div class="collapse navbar-collapse" id="navbarSupportedContent">
-			<ul class="navbar-nav mr-auto">
-				<li class="nav-item active">
-					<a class="nav-link" href="#">Home <span class="sr-only">(current)</span></a>
-				</li>
-				<li class="nav-item">
-					<a class="nav-link" href="#">Link</a>
-				</li>
-				<li class="nav-item dropdown">
-					<a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown"
-						aria-haspopup="true" aria-expanded="false">
-						Dropdown
-					</a>
-					<ul class="dropdown-menu" aria-labelledby="navbarDropdown">
-						<li><a class="dropdown-item" href="#">Action</a></li>
-						<li><a class="dropdown-item" href="#">Another action</a></li>
-						<div class="dropdown-divider"></div>
-						<li></li><a class="dropdown-item" href="#">Something else here</a></li>
-						<li class="nav-item dropdown">
-								<a class="dropdown-item dropdown-toggle" href="#" id="navbarDropdown1" role="button" data-toggle="dropdown"
-									aria-haspopup="true" aria-expanded="false">
-									Dropdown
-								</a>
-								<ul class="dropdown-menu" aria-labelledby="navbarDropdown1">
-									<li><a class="dropdown-item" href="#">Action</a></li>
-									<li><a class="dropdown-item" href="#">Another action</a></li>
-									<div class="dropdown-divider"></div>
-									<li></li><a class="dropdown-item" href="#">Something else here</a></li>
-									<li class="nav-item dropdown">
-											<a class="dropdown-item dropdown-toggle" href="#" id="navbarDropdown2" role="button" data-toggle="dropdown"
-												aria-haspopup="true" aria-expanded="false">
-												Dropdown
-											</a>
-											<ul class="dropdown-menu" aria-labelledby="navbarDropdown2">
-												<li><a class="dropdown-item" href="#">Action</a></li>
-												<li><a class="dropdown-item" href="#">Another action</a></li>
-												<div class="dropdown-divider"></div>
-												<li></li><a class="dropdown-item" href="#">Something else here</a></li>
-											</ul>
-										</li>
-								</ul>
-							</li>
-					</ul>
-				</li>
-				<li class="nav-item">
-					<a class="nav-link disabled" href="#">Disabled</a>
-				</li>
-			</ul>
-			<form class="form-inline my-2 my-lg-0">
-				<input class="form-control mr-sm-2" type="search" placeholder="Search" aria-label="Search">
-				<button class="btn btn-outline-success my-2 my-sm-0" type="submit">Search</button>
-			</form>
-		</div>
-	</nav><script type="text/javascript">$('#main_navbar').bootnavbar();</script>`)*/
+	widgeting.NavBar(out, "id=navbar", func(out *widgeting.OutPrint) {
+		widgeting.NavItem(out, "LNK", "class=web-action", "target=#mainsection", "url_ref=/index.html?command=datasources")
+		widgeting.NavItem(out, "ADHOC OPTIONS", "class=web-action", "target=#mainsection", "url_ref=/index.html?command=adhocoptions")
+		widgeting.Menu(out, "menu1", "MENU 1", func(out *widgeting.OutPrint) {
+			widgeting.MenuItem(out, "MENU 1 1", "class=web-action", "url_ref=/index.html?command=samplesection")
+			widgeting.MenuItem(out, "MENU 1 2")
+			widgeting.Menu(out, "menu11", "MENU 1 3", func(out *widgeting.OutPrint) {
+				widgeting.MenuItem(out, "MENU 1 1")
+			})
+		})
+	})
 	return
 }
 
@@ -137,6 +54,30 @@ func init() {
 	lnksworks.MapActiveCommand("index.html",
 		"datasources", Datasources,
 	)
+
+	lnksworks.MapActiveCommand("index.html",
+		"adhocoptions", AdhocOptions,
+	)
+
+	lnksworks.MapActiveCommand("index.html",
+		"samplesection", SampleSection,
+	)
+}
+
+func SampleSection(atvpros *lnksworks.ActiveProcessor, path string, a ...string) (err error) {
+	var out = atvpros.Out()
+	out.ReplaceContent(".samplesection", func(out *widgeting.OutPrint) {
+		out.Print("SECTION-TEST")
+	})
+	return
+}
+
+func AdhocOptions(atvpros *lnksworks.ActiveProcessor, path string, a ...string) (err error) {
+	var out = atvpros.Out()
+
+	out.Print("ADHOC-OPTIONS")
+
+	return
 }
 
 func Datasources(atvpros *lnksworks.ActiveProcessor, path string, a ...string) (err error) {
@@ -156,7 +97,7 @@ func Datasources(atvpros *lnksworks.ActiveProcessor, path string, a ...string) (
 
 func ACTION(out *widgeting.OutPrint, tag string, title string, icon string, navclass string, a ...interface{}) {
 	out.ELEM(tag, "class="+navclass, func(out *widgeting.OutPrint) {
-		out.ELEM("i", "class="+icon)
-		out.Print(title)
+		out.ELEM("i", "class="+icon, "role=button")
+		out.ELEM("span", title)
 	}, a)
 }
