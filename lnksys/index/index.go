@@ -24,24 +24,32 @@ const indexhtml = `<!DOCTYPE html>
 <body>    
 	<div id="mainindex"></div>
 	<div id="mainsection"></div>
-	<div class="samplesection"></div>
-	<script>postForm({"target":"#mainindex","url_ref":"index.html?command=index"});</script>
+	<script>postForm({"url_ref":"index.html?command=index"});</script>
 </body>
 </html>
 `
 
 func Index(atvpros *lnksworks.ActiveProcessor, path string, a ...string) (err error) {
 	var out = atvpros.Out()
-	widgeting.NavBar(out, "id=navbar", func(out *widgeting.OutPrint) {
-		widgeting.NavItem(out, "LNK", "class=web-action", "target=#mainsection", "url_ref=/index.html?command=datasources")
-		widgeting.NavItem(out, "ADHOC OPTIONS", "class=web-action", "target=#mainsection", "url_ref=/index.html?command=adhocoptions")
-		widgeting.Menu(out, "menu1", "MENU 1", func(out *widgeting.OutPrint) {
-			widgeting.MenuItem(out, "MENU 1 1", "class=web-action", "url_ref=/index.html?command=samplesection")
-			widgeting.MenuItem(out, "MENU 1 2")
-			widgeting.Menu(out, "menu11", "MENU 1 3", func(out *widgeting.OutPrint) {
-				widgeting.MenuItem(out, "MENU 1 1")
+	out.ReplaceContent("#mainindex", func(out *widgeting.OutPrint) {
+		out.ELEM("ul", "class=nav", func(out *widgeting.OutPrint) {
+			out.ELEM("li", "class=nav-item", func(out *widgeting.OutPrint) {
+				out.ELEM("a", "class=nav-link active webaction", "href=javascript:void(0)", "url_ref=/index.html?command=inbound&target=mainsection", "INBOUND")
+			})
+			out.ELEM("li", "class=nav-item", func(out *widgeting.OutPrint) {
+				out.ELEM("a", "class=nav-link webaction", "href=javascript:void(0)", "url_ref=/index.html?command=outbound&target=mainsection", "OUTBOUND")
+			})
+			out.ELEM("li", "class=nav-item", func(out *widgeting.OutPrint) {
+				out.ELEM("a", "class=nav-link webaction", "href=javascript:void(0)", "url_ref=/index.html?command=shared&target=mainsection", "SHAREDBOUND")
 			})
 		})
+	})
+	out.ReplaceContent("#mainsection")
+	out.ScriptContent("", func(out *widgeting.OutPrint) {
+		out.Print(`$(".webaction").click(function(e){
+			e.preventDefault();
+			postByElem(this);
+		});`)
 	})
 	return
 }
@@ -53,32 +61,43 @@ func init() {
 	)
 
 	lnksworks.MapActiveCommand("index.html",
-		"datasources", Datasources,
+		"inbound", Inbound,
+	)
+	lnksworks.MapActiveCommand("index.html",
+		"outbound", Outbound,
+	)
+	lnksworks.MapActiveCommand("index.html",
+		"shared", Shared,
 	)
 
-	lnksworks.MapActiveCommand("index.html",
-		"adhocoptions", AdhocOptions,
-	)
-
-	lnksworks.MapActiveCommand("index.html",
-		"samplesection", SampleSection,
-	)
 }
 
-func SampleSection(atvpros *lnksworks.ActiveProcessor, path string, a ...string) (err error) {
-	var out = atvpros.Out()
-	out.ReplaceContent(".samplesection", func(out *widgeting.OutPrint) {
-		out.Print("SECTION-TEST")
-	})
+func Inbound(atvpros *lnksworks.ActiveProcessor, path string, a ...string) (err error) {
+	IndexSection(atvpros.Out(), "INBOUND", atvpros.Parameters(), atvpros.Parameters().StringParameter("target", ""))
 	return
 }
 
-func AdhocOptions(atvpros *lnksworks.ActiveProcessor, path string, a ...string) (err error) {
-	var out = atvpros.Out()
-
-	out.Print("ADHOC-OPTIONS")
+func Outbound(atvpros *lnksworks.ActiveProcessor, path string, a ...string) (err error) {
+	IndexSection(atvpros.Out(), "OUTBOUND", atvpros.Parameters(), atvpros.Parameters().StringParameter("target", ""))
 
 	return
+}
+
+func Shared(atvpros *lnksworks.ActiveProcessor, path string, a ...string) (err error) {
+	IndexSection(atvpros.Out(), "SHARED", atvpros.Parameters(), atvpros.Parameters().StringParameter("target", ""))
+
+	return
+}
+
+func IndexSection(out *widgeting.OutPrint, title string, params *lnksworks.Parameters, target string, a ...interface{}) {
+	if target != "" && !strings.HasPrefix(target, ".") {
+		target = "#" + target
+	}
+	out.ReplaceContent(target, func(out *widgeting.OutPrint) {
+		out.ELEM("div", func(out *widgeting.OutPrint) {
+			out.Print(strings.ToUpper(title))
+		})
+	}, a)
 }
 
 func Datasources(atvpros *lnksworks.ActiveProcessor, path string, a ...string) (err error) {
@@ -96,9 +115,12 @@ func Datasources(atvpros *lnksworks.ActiveProcessor, path string, a ...string) (
 	return
 }
 
+func ICON(out *widgeting.OutPrint, tag string, class string, title string) {
+	out.ELEM(tag, "class="+class, title)
+}
+
 func ACTION(out *widgeting.OutPrint, tag string, title string, icon string, navclass string, a ...interface{}) {
 	out.ELEM(tag, "class="+navclass, func(out *widgeting.OutPrint) {
-		out.ELEM("i", "class="+icon, "role=button")
 		out.ELEM("span", title)
 	}, a)
 }
