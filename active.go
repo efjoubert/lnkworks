@@ -2133,6 +2133,8 @@ func (atvpros *ActiveProcessor) Process(rs io.ReadSeeker, root string, path stri
 					} else {
 						commands = append(commands[:cmdn], commands[cmdn+1:]...)
 					}
+				} else if len(commands) == 1 {
+					commands = []string{}
 				}
 			}
 		}
